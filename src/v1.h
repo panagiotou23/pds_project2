@@ -45,7 +45,7 @@ knnresult distrAllkNN(double * X, int n, int d, int k){
         memcpy(Y, X + world_rank*m + n%world_size, m * d * sizeof(double));
     }
     
-    //Intialize the variables used to time the function
+    //Declare the variables used to time the function
     struct timespec ts_start;
     struct timespec ts_end;
 
