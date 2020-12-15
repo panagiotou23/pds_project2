@@ -5,6 +5,7 @@
 
 #define SWAP(x, y, T) do { T SWAP = x; x = y; y = SWAP; } while (0)
 
+//The Struct that contains the k nearest neighbors of m queries
 typedef struct knnresult{
   int    * nidx;    //!< Indices (0-based) of nearest neighbors [m-by-k]
   double * ndist;   //!< Distance of nearest neighbors          [m-by-k]
@@ -12,7 +13,8 @@ typedef struct knnresult{
   int      k;       //!< Number of nearest neighbors            [scalar]
 } knnresult;
 
-void k_select(int * nidx,
+//A sorting alogorithm for the k first items of a list
+void k_select(int * nidx,   
             double * ndist,
             int k,
             int n)
@@ -31,27 +33,7 @@ void k_select(int * nidx,
     }
 }
 
-void k_D_select(int * nidx,
-            double * ndist,
-            int k,
-            int n,
-            int m,
-            int col)
-{
-    for(int i=0; i<k; i++){
-        int minidx = i;
-        double min = ndist[i*m + col];
-        for(int j=i+1; j<n; j++){
-            if(min > ndist[j*m + col]){
-                min = ndist[j*m + col];
-                minidx = nidx[j*m + col];
-                SWAP(ndist[i*m + col],ndist[j*m + col], double);
-                SWAP(nidx[i], nidx[j], int);
-            }
-        } 
-    }
-}
-
+//Calculates a column of the Euclidean distance matrix D 
 double *calc_Dcol(  double *X,
                     double *Y,
                     int n,
@@ -71,6 +53,7 @@ double *calc_Dcol(  double *X,
     return Dcol;
 }
 
+//Calculates the Euclidean distance matrix D 
 double *calc_D( double *X,
                 double *Y,
                 int n,
@@ -95,8 +78,8 @@ double *calc_D( double *X,
     return D;
 }
 
-
-
+//Finds for each point in a query set Y the k nearest neighbors
+//in the corpus set X
 knnresult kNN(  double *X,
                 double *Y,
                 int n,
@@ -104,24 +87,32 @@ knnresult kNN(  double *X,
                 int d,
                 int k)
 {
+
     knnresult knn;
     knn.m = m;
     knn.k = k;
     knn.nidx = (int *)malloc(m * k * sizeof(int));
     knn.ndist = (double *)malloc(m * k * sizeof(double));
 
+    //For every point in Y
     for(int j=0; j<m; j++){
 
-        int * nidx = (int *)malloc(n * sizeof(int));
+        //Calcute its distance from every point in X 
         double * ndist = calc_Dcol(X, Y, n, d, j);
 
+        //And memorize their indices
+        int * nidx = (int *)malloc(n * sizeof(int));
         for(int i=0; i<n; i++) nidx[i] = i;
         
+        //Sort the k + 1 distances and indices,
+        //because it will also calculate the distance from itself
         k_select(nidx,ndist, k + 1, n);
 
+        //Save only the k smallest distances except from itself
         memcpy(knn.nidx + j * k, nidx + 1, k * sizeof(int));
         memcpy(knn.ndist + j * k, ndist + 1, k * sizeof(double));
         
+        //Free the arrays
         free(nidx);
         free(ndist);
     }
