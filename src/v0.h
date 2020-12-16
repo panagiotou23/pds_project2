@@ -13,6 +13,25 @@ typedef struct knnresult{
   int      k;       //!< Number of nearest neighbors            [scalar]
 } knnresult;
 
+//A sorting alogorithm for the k first items of a list
+void k_select(int * nidx,   
+            double * ndist,
+            int k,
+            int n)
+{
+    for(int i=0; i<k; i++){
+        int minidx = i;
+        double min = ndist[i];
+        for(int j=i+1; j<n; j++){
+            if(min > ndist[j]){
+                min = ndist[j];
+                minidx = nidx[j];
+                SWAP(ndist[i],ndist[j], double);
+                SWAP(nidx[i], nidx[j], int);
+            }
+        } 
+    }
+}
 
 int partition(int * nidx,   
             double * ndist,
@@ -20,25 +39,24 @@ int partition(int * nidx,
             int right,
             int pivot)
 {
+
     double val = ndist[pivot];
-    printf("\n\nval: %lf\n", val);
-    printf("Left: %d\tRight: %d\n", left, right);
+
     SWAP(ndist[right], ndist[pivot], double);
     SWAP(nidx[right], nidx[pivot], int);
     
     int storeIdx = left;
 
-    for(int i=left; i<right-1; i++){
+    for(int i=left; i<right; i++){
         if(ndist[i] < val){
-            printf("Swaped with: %lf\n", ndist[i]);
             SWAP(ndist[storeIdx], ndist[i], double);
             SWAP(nidx[storeIdx], nidx[i], int);
             storeIdx++;
+
         }
     }
     SWAP(ndist[storeIdx], ndist[right], double);
     SWAP(nidx[storeIdx], nidx[right], int);
-    printf("Store index: %d", storeIdx);
     return storeIdx;
 }
 
@@ -48,8 +66,8 @@ void quickselect(int * nidx,
             int right,
             int k)
 {
-    if(left == right) return;
-
+    if(left >= right) return;
+    
     int pivot = left + rand() % (right - left + 1);
     pivot = partition(nidx, ndist, left, right, pivot);
 
@@ -136,7 +154,7 @@ knnresult kNN(  double *X,
         for(int i=0; i<n; i++) nidx[i] = i;
         
         //Sort the k distances and indices
-        quickselect(nidx, ndist, 0, n-1, k-1);
+        quickselect(nidx, ndist, 0, n-1, k);
         
         //Save only the k smallest distances except from itself
         memcpy(knn.nidx + j * k, nidx, k * sizeof(int));
