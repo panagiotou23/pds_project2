@@ -40,7 +40,7 @@ double *calc_Dcol(  double *X,
                     int d,
                     int row)
 {
-    double *Dcol= (double *)malloc(n * sizeof(double));
+    double *Dcol= malloc(n * sizeof(double));
 
     for(int i=0; i<n; i++) Dcol[i] = 0;
 
@@ -60,7 +60,7 @@ double *calc_D( double *X,
                 int d,
                 int m)
 {
-    double *D= (double *)malloc(n * m * sizeof(double));
+    double *D= malloc(n * m * sizeof(double));
     
     double xsum[n],
            ysum[m];
@@ -91,8 +91,8 @@ knnresult kNN(  double *X,
     knnresult knn;
     knn.m = m;
     knn.k = k;
-    knn.nidx = (int *)malloc(m * k * sizeof(int));
-    knn.ndist = (double *)malloc(m * k * sizeof(double));
+    knn.nidx = malloc(m * k * sizeof(int));
+    knn.ndist = malloc(m * k * sizeof(double));
 
     //For every point in Y
     for(int j=0; j<m; j++){
@@ -101,7 +101,7 @@ knnresult kNN(  double *X,
         double * ndist = calc_Dcol(X, Y, n, d, j);
 
         //And memorize their indices
-        int * nidx = (int *)malloc(n * sizeof(int));
+        int * nidx = malloc(n * sizeof(int));
         for(int i=0; i<n; i++) nidx[i] = i;
         
         //Sort the k + 1 distances and indices,

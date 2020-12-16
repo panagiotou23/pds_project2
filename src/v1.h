@@ -5,9 +5,6 @@
 //Computes distributed all-kNN of points in X
 knnresult distrAllkNN(double * X, int n, int d, int k){
 
-    //Initialiize MPI Commands
-    MPI_Init(NULL, NULL);
-
     //Store the world rank and size
     int world_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
@@ -25,8 +22,8 @@ knnresult distrAllkNN(double * X, int n, int d, int k){
     }
 
     //Initiallize the arrays that will store the indices and distances of the knn 
-    int *nidx = (int *)malloc(k * sizeof(int));
-    double *ndist = (double *)malloc(k * sizeof(double));        
+    int *nidx = malloc(k * sizeof(int));
+    double *ndist = malloc(k * sizeof(double));        
 
     //Declaire that every process exept from 0 will receive the knn's indices and distances of the previous process
     //And will store the data on the buffers nidx and ndist instead of an internal buffer
@@ -34,36 +31,14 @@ knnresult distrAllkNN(double * X, int n, int d, int k){
         MPI_Irecv(nidx, k, MPI_INT, world_rank - 1, 0, MPI_COMM_WORLD, &idx_request);
         MPI_Irecv(ndist, k, MPI_DOUBLE, world_rank - 1, 1, MPI_COMM_WORLD, &dist_request);
     }
-
-    //Initialize the query set Y
-    double *Y = (double *)malloc(m * d * sizeof(double));
     
+    knnresult knn;
     //Copy the points from X
     if(world_rank < n%world_size){
-        memcpy(Y, X + world_rank*m, m * d * sizeof(double));
+        knn = kNN(X, X + world_rank*m*d, n, m, d, k);
     }else{
-        memcpy(Y, X + world_rank*m + n%world_size, m * d * sizeof(double));
+        knn = kNN(X, X + (world_rank*m + n%world_size)*d, n, m, d, k);
     }
-    
-    //Declare the variables used to time the function
-    struct timespec ts_start;
-    struct timespec ts_end;
-
-    //Start the clock
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
-
-    //Find the knn of the query set
-    knnresult knn = kNN(X, Y, n, m, d, k);
-
-    //Stop the Clock
-    clock_gettime(CLOCK_MONOTONIC, &ts_end);
-
-    //Free the query set
-    free(Y);
-
-    //Print the time of V0
-    long time = (ts_end.tv_sec - ts_start.tv_sec)* 1000000 + (ts_end.tv_nsec - ts_start.tv_nsec)/ 1000;
-    printf("V0 Time \n%ld us\n%f s\n\n", time, (float)time*1e-6);
 
     //Sort the k smallest distances
     k_select(knn.nidx, knn.ndist, k , k * m);
@@ -72,8 +47,8 @@ knnresult distrAllkNN(double * X, int n, int d, int k){
     knnresult final;
     final.k = k;
     final.m = 1;
-    final.nidx = (int *)malloc(k * sizeof(int));
-    final.ndist = (double *)malloc(k * sizeof(double));     
+    final.nidx = malloc(k * sizeof(int));
+    final.ndist = malloc(k * sizeof(double));     
 
     //The first process will copy the knn to the return struct 
     if(world_rank == 0){
@@ -82,10 +57,7 @@ knnresult distrAllkNN(double * X, int n, int d, int k){
     }
 
     //If there is only one process running return the knn
-    if(world_size == 1){
-        MPI_Finalize();
-        return final;
-    } 
+    if(world_size == 1) return final;
     
     //If there are more
     if (world_rank != 0) {
@@ -109,10 +81,9 @@ knnresult distrAllkNN(double * X, int n, int d, int k){
                 j++;
             }
         }
-
+        
         //If this is the last process return 
         if(world_rank == world_size -1){
-            MPI_Finalize();
             return final;
         } 
     }
@@ -122,7 +93,6 @@ knnresult distrAllkNN(double * X, int n, int d, int k){
     MPI_Isend(final.ndist, k, MPI_DOUBLE, (world_rank + 1) % world_size, 1, MPI_COMM_WORLD, &dist_request);
 
     //Finalize MPI and return an empty struct
-    MPI_Finalize();
     knnresult kn;
     return kn;
 }
