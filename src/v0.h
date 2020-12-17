@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #include <string.h>
 
 #include <cblas.h>
