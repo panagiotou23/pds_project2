@@ -2,6 +2,9 @@
 
 #include <mpi.h>
 
+
+#include <unistd.h> 
+
 //Computes distributed all-kNN of points in X
 knnresult distrAllkNN(double * X, int n, int d, int k){
 
@@ -11,88 +14,125 @@ knnresult distrAllkNN(double * X, int n, int d, int k){
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    //Declare the MPI status and request for the asynchronous communications
-    MPI_Status idx_status, dist_status;
-    MPI_Request idx_request, dist_request;
-
     //Define the number of queries in each process
     int m = n/world_size;
     for(int i=0; i<n%world_size; i++){              //if the number of processes is not dividable with the number of elements
         if(world_rank == i ) m = n/world_size + 1;  //the first will receive one extra 
     }
 
-    //Initiallize the arrays that will store the indices and distances of the knn 
-    int *nidx = malloc(k * sizeof(int));
-    double *ndist = malloc(k * sizeof(double));        
-
-    //Declaire that every process exept from 0 will receive the knn's indices and distances of the previous process
-    //And will store the data on the buffers nidx and ndist instead of an internal buffer
-    if(world_rank != 0){
-        MPI_Irecv(nidx, k, MPI_INT, world_rank - 1, 0, MPI_COMM_WORLD, &idx_request);
-        MPI_Irecv(ndist, k, MPI_DOUBLE, world_rank - 1, 1, MPI_COMM_WORLD, &dist_request);
-    }
-    
-    knnresult knn;
-    //Copy the points from X
+    double *my_X = malloc(m * d * sizeof(double));
     if(world_rank < n%world_size){
-        knn = kNN(X, X + world_rank*m*d, n, m, d, k);
+        memcpy(my_X, X + world_rank*m * d, m * d * sizeof(double));
     }else{
-        knn = kNN(X, X + (world_rank*m + n%world_size)*d, n, m, d, k);
+        memcpy(my_X, X + (world_rank*m + n%world_size) * d, m * d * sizeof(double));
     }
 
-    //Sort the k smallest distances
-    k_select(knn.nidx, knn.ndist, k , k * m);
+    knnresult knn = kNN(my_X, my_X, m, m, d, k + 1);
     
-    //Initiialize the return struct
+    for(int i=0; i<m; i++){
+        for(int j=0; j<k+1; j++){
+            if(knn.ndist[j + i * (k + 1)] == 0){
+                SWAP(knn.ndist[(k + 1) * (i + 1) - 1], knn.ndist[j + i * (k + 1)], double);
+                SWAP(knn.nidx[(k + 1) * (i + 1) - 1], knn.nidx[j + i * (k + 1)], int);
+                break;
+            }
+        }
+    }
+    
     knnresult final;
     final.k = k;
-    final.m = 1;
-    final.nidx = malloc(k * sizeof(int));
-    final.ndist = malloc(k * sizeof(double));     
+    final.m = m;
+    final.nidx = malloc(m * k * sizeof(int));
+    final.ndist = malloc(m * k * sizeof(double));
+    for(int i=0; i<m; i++){
+        memcpy(final.nidx + i * k, knn.nidx + i * (k + 1), k * sizeof(int));
+        memcpy(final.ndist + i * k, knn.ndist + i * (k + 1) , k * sizeof(double));   
+    }
 
-    //The first process will copy the knn to the return struct 
-    if(world_rank == 0){
-        memcpy(final.nidx, knn.nidx, k * sizeof(int));
-        memcpy(final.ndist, knn.ndist, k * sizeof(double));
+
+    if(world_rank < n%world_size){
+        for(int i=0; i<m; i++){
+            for(int j=0; j<k; j++) {
+                final.nidx[j + i*k] += world_rank * m;
+            }
+        }
+    }else{
+        for(int i=0; i<m; i++){
+            for(int j=0; j<k; j++) {
+                final.nidx[j + i*k] += world_rank * m  + n%world_size;
+            }
+        }
     }
 
     //If there is only one process running return the knn
     if(world_size == 1) return final;
     
-    //If there are more
-    if (world_rank != 0) {
+    int receiver = world_rank + 1,
+        sender = world_rank - 1;
         
-        //Wait to receive the k nearest from the previous process
-        MPI_Wait(&idx_request, &idx_status);
-        MPI_Wait(&dist_request, &dist_status);
+    for(int i=0; i<world_size-1; i++){
 
-        //Save the k nearest in the return struct
-        int i=0, 
-            j=0;
-        while(i + j < k){
+        int flag = 0;
+        int other_m;
+        MPI_Status status;
+        MPI_Request request;
+        
+        if(receiver == world_size) receiver = 0;
+        MPI_Isend(my_X, m * d, MPI_DOUBLE, receiver, 0, MPI_COMM_WORLD, &request);
+        printf("%d sent to %d an array of %d\n", world_rank, receiver, m * d);
 
-            if(knn.ndist[i] < ndist[j]){
-                final.ndist[i+j] = knn.ndist[i];
-                final.nidx[i+j] = knn.nidx[i];
-                i++;
-            }else{
-                final.ndist[i+j] = ndist[j];
-                final.nidx[i+j] = nidx[j];
-                j++;
+        if(sender < 0) sender = world_size - 1;
+                
+        while(!flag) MPI_Iprobe( sender, 0, MPI_COMM_WORLD, &flag, &status);
+        MPI_Get_count( &status, MPI_DOUBLE, &other_m );        
+        other_m /= d;
+
+        double *other_X = malloc(other_m * d * sizeof(double));
+        MPI_Recv(other_X , other_m * d, MPI_DOUBLE, sender, 0, MPI_COMM_WORLD, &status);
+        printf("%d got from %d an array of %d\n", world_rank, sender, other_m*d);
+        
+        knnresult temp_knn = kNN(other_X, my_X, other_m, m, d, k);
+        
+        if(sender < n%world_size){
+            for(int i=0; i<m; i++){
+                for(int j=0; j<k; j++) {
+                    temp_knn.nidx[j + i*k] += sender * other_m;
+                }
+            }
+        }else{
+            for(int i=0; i<m; i++){
+                for(int j=0; j<k; j++) {
+                    temp_knn.nidx[j + i*k] += sender * other_m + n%world_size;
+                }
             }
         }
-        
-        //If this is the last process return 
-        if(world_rank == world_size -1){
-            return final;
-        } 
+
+        for(int i=0; i<m; i++){
+
+            int *nidx = malloc(2 * k * sizeof(int));
+            double *ndist = malloc(2 * k * sizeof(double));
+
+            memcpy(nidx, final.nidx + i * k, k * sizeof(int));            
+            memcpy(ndist, final.ndist + i * k, k * sizeof(double));
+
+            memcpy(nidx + k, temp_knn.nidx + i * k, k * sizeof(int));            
+            memcpy(ndist + k, temp_knn.ndist + i * k, k * sizeof(double));
+            
+            quickselect(nidx, ndist, 0, (2 * k) - 1, k);
+
+            memcpy(final.nidx + i * k, nidx, k * sizeof(int));            
+            memcpy(final.ndist + i * k, ndist, k * sizeof(double));
+
+            free(nidx);
+            free(ndist);
+        }
+
+        free(other_X);
+
+        sender--;
+        receiver++;
+
     }
 
-    //Send the updated nearest k to the next process
-    MPI_Isend(final.nidx, k, MPI_INT, (world_rank + 1) % world_size, 0, MPI_COMM_WORLD, &idx_request);
-    MPI_Isend(final.ndist, k, MPI_DOUBLE, (world_rank + 1) % world_size, 1, MPI_COMM_WORLD, &dist_request);
-
-    //Finalize MPI and return an empty struct
-    knnresult kn;
-    return kn;
+    return final;
 }
