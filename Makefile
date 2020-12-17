@@ -7,6 +7,8 @@ BIN_DIR=bin
 SRC_DIR=src
 $(info $(shell mkdir -p $(BIN_DIR)))
 
+export OMPI_MCA_btl_vader_single_copy_mechanism=none
+
 default: main
 
 main:
