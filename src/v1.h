@@ -2,9 +2,6 @@
 
 #include <mpi.h>
 
-
-#include <unistd.h> 
-
 //Computes distributed all-kNN of points in X
 knnresult distrAllkNN(double * X, int n, int d, int k){
 
