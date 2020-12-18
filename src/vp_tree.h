@@ -1,147 +1,166 @@
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include <stdbool.h>
 
-#include "v1.h"
-
-typedef struct node {
-    int *id,
-        n;
+typedef struct vp_tree{
+    int n,
+        d,
+        B,
+        *id,
+        *left_cnt,
+        *right_cnt;
     double *p,
-           mu;
-    struct node *left,
-                *right;
-    
-}node;
+           *mu;
 
-node select_vp(double *X, int *id, int n, int d){
+}vp_tree;
+
+/*************************FIX SELECT VP*****************************/
+int select_vp(double *X, int *id, int n, int d){
     int i = rand()%n;
-
-    node nd;
-    nd.n = 1;
-    nd.p = malloc(d * sizeof(double));
-    memcpy(nd.p, X + i*d, d * sizeof(double));
-    nd.id = malloc(sizeof(int));
-    nd.id[0] = id[i];
-
-    return nd;
+    return i;
 }
 
-node make_vp_tree(double *X, int *id, int n, int d, int k){
-
-    node nd;
-
-    if(n<=k){
-        // printf("%d\n", n);
-        nd.n = n;
-        nd.p = malloc(n * d * sizeof(double));
-        memcpy(nd.p, X, n * d * sizeof(double));
-
-        nd.id = malloc(n * sizeof(int));
-        memcpy(nd.id, id, n * sizeof(int));
-
-        nd.left = NULL;
-        nd.right = NULL;
-
-        return nd;
+void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
+    
+    if(n <= vpt->B){
+        for(int i=0; i<n; i++){
+            vpt->id[index + i] = id[i];
+            memcpy(vpt->p + (index + i) * vpt->d, X + id[i] * vpt->d, vpt->d * sizeof(double));
+            vpt->mu[index + i] = 0;
+            vpt->left_cnt[index+i] = 0;
+            vpt->right_cnt[index+i] = 0;
+        }
+        return;
     }
 
-    nd = select_vp(X, id, n, d);
+    int vp = select_vp(X, id, n, vpt->d);
+
+    vpt->id[index] = id[vp];
+    memcpy(vpt->p + index * vpt->d, X + id[vp] * vpt->d, vpt->d * sizeof(double));
 
     double sum = 0;
     for(int i=0; i<n; i++)
-        for(int j=0; j<d; j++) 
-            sum += (nd.p[j] - X[j + i*d]) * (nd.p[j] - X[j + i*d]);
-    
-    nd.mu = sum / (n-1);
+        for(int j=0; j<vpt->d; j++) 
+            sum += (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]) * 
+                    (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]);
 
-    double dst;
+    vpt->mu[index] = sum/(n-1);
 
     int left_cnt = 0,
-        right_cnt = 0;
-    // printf("AAAAAAAAAAA\n");
-    int *left_idx = malloc(n * sizeof(int));
-    int *right_idx = malloc(n * sizeof(int));
-
-    // printf("AAAAAAAAAAA\n");    
-    int *left_id = malloc(n * sizeof(int));
-    int *right_id = malloc(n * sizeof(int));
+        right_cnt = 0,
+        *left_id = malloc(n * sizeof(int)),
+        *right_id = malloc(n * sizeof(int));
 
     for(int i=0; i<n; i++){
-        dst = 0;
-        for(int j=0; j<d; j++)
-            dst += (nd.p[j] - X[j + i*d]) * (nd.p[j] - X[j + i*d]);
-
+        double dst = 0;
+        for(int j=0; j<vpt->d; j++) 
+            dst += (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]) *
+                    (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]);
+        
         if(dst == 0) continue;
 
-        if(dst < nd.mu){
-            left_id[left_cnt] = id[i];
-            left_idx[left_cnt++] = i;
+        if(dst < vpt->mu[index]){
+            left_id[left_cnt++] = id[i];
         }else{
-            right_id[right_cnt] = id[i];
-            right_idx[right_cnt++] = i;
+            right_id[right_cnt++] = id[i];
         }
-
     }
-    double *left = malloc(left_cnt * d * sizeof(double));
-    double *right = malloc(right_cnt * d * sizeof(double));
 
-    for(int i=0; i<left_cnt; i++) memcpy(left + i * d, X + left_idx[i] * d, d * sizeof(double));
-    for(int i=0; i<right_cnt; i++) memcpy(right + i * d, X + right_idx[i] * d, d * sizeof(double));
-    
-    nd.left = (node *)malloc(sizeof(node));
-    nd.right = (node *)malloc(sizeof(node));
-    if(left_cnt > 0){
-        *nd.left = make_vp_tree(left, left_id, left_cnt, d, k);
-    }else{
-        nd.left = NULL;
-    }if(right_cnt > 0){
-        *nd.right = make_vp_tree(right, right_id, right_cnt, d, k);
-    }else{
-        nd.right = NULL;
-    }
-    return nd;
+    vpt->left_cnt[index] = left_cnt;
+    vpt->right_cnt[index] = right_cnt;
+
+    make_vp_node(X, left_id, vpt, index + 1, left_cnt);
+    make_vp_node(X, right_id, vpt, index + left_cnt+1, right_cnt);
 
 }
 
-void add(node nd, int idx, knnresult *knn, double x){
-    for(int i=0; i<knn->k; i++){
-        if(knn->ndist[i] >= x){
-            memmove(knn->ndist + i + 1, knn->ndist + i, (knn->k - i - 1) * sizeof(double));
-            memmove(knn->nidx + i + 1, knn->nidx + i, (knn->k - i - 1) * sizeof(double));
-            knn->ndist[i] = x;
-            knn->nidx[i] = nd.id[idx];
+vp_tree make_vp_tree(double *X, int n, int d, int B){
+    vp_tree vpt;
+    vpt.n = n;
+    vpt.d = d;
+    
+    vpt.id = malloc(n * sizeof(int));
+    vpt.p = malloc(n * d * sizeof(double));
+    vpt.mu = malloc(n * sizeof(double));
+
+    vpt.left_cnt = malloc(n * sizeof(int));
+    vpt.right_cnt = malloc(n * sizeof(int));
+
+    vpt.B = B;
+
+    int *id = malloc(n * sizeof(int));
+
+    for(int i=0; i<n; i++) id[i] = i;
+
+    make_vp_node(X, id, &vpt, 0, n);
+
+    return vpt;
+}
+
+
+void add(int *nidx, double *ndist, int k, int idx, double x){
+    for(int i=0; i<k; i++){
+        if(ndist[i] >= x){
+            memmove(nidx + i + 1, nidx + i, (k - i - 1) * sizeof(int));
+            memmove(ndist + i + 1, ndist + i, (k - i - 1) * sizeof(double));
+            
+            nidx[i] = idx;
+            ndist[i] = x;
             break;
         }
     }
 }
 
-void search(node nd, knnresult *knn, double *Y, int d, double prev){
+/*******************************FIX BOOL***********************************/
+void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, bool leaf, int points);
 
-    double x;
+void search_l(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index){
+    if(vpt.left_cnt[index] > vpt.B){
+        search(vpt, nidx, ndist, k, q, index + 1, false, 1);    
+    }else{
+        search(vpt, nidx, ndist, k, q, index + 1, true, vpt.left_cnt[index]);    
+    }
+}
 
-    for(int i=0; i<nd.n; i++){
-        x = 0;
+void search_r(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index){
+    if(vpt.right_cnt[index] > vpt.B){
+        search(vpt, nidx, ndist, k, q, index + vpt.left_cnt[index] + 1, false, 1);
+    }else{
+        search(vpt, nidx, ndist, k, q, index + vpt.left_cnt[index] + 1, true, vpt.right_cnt[index]);
+    }
+}
+
+void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, bool leaf, int points){
+
+    double x = 0;
+    for(int j=0; j<vpt.d; j++) 
+        x += (vpt.p[j + index * vpt.d] - q[j]) *
+                (vpt.p[j + index * vpt.d] - q[j]);
+
+    if(x < ndist[k - 1]){
+        add(nidx, ndist, k, vpt.id[index], x);
+    }
+
+    if(!leaf){
+        if(x < vpt.mu[index] - ndist[k - 1]){
+            search_l(vpt, nidx, ndist, k, q, index);
+        }else if(x > vpt.mu[index] + ndist[k - 1]){
+            search_r(vpt, nidx, ndist, k, q, index);
+        }else{
+            search_l(vpt, nidx, ndist, k, q, index);
+            search_r(vpt, nidx, ndist, k, q, index);
+        }
+    }else{
+        for(int i=1; i<points; i++){
+            x = 0;
+            for(int j=0; j<vpt.d; j++) 
+                x += (vpt.p[j + (index + i) * vpt.d] - q[j]) *
+                        (vpt.p[j + (index + i) * vpt.d] - q[j]);
         
-        for(int j=0; j<d; j++) x += (nd.p[j + i * d] - Y[j]) * (nd.p[j + i * d] - Y[j]);
-
-        if(x == 0) continue;
-
-        if(x < knn->ndist[knn->k - 1]){
-            add(nd, i, knn, x);
-            prev = x;
+            if(x < ndist[k - 1]){
+                add(nidx, ndist, k, vpt.id[index + i], x);
+            }
         }
     }
-
-    if(nd.n > 1) return;
-
-    if(x < nd.mu - prev && prev != INFINITY){
-        if(nd.left != NULL) search(*nd.left, knn, Y, d, prev);
-    }else if(x > nd.mu + prev && prev != INFINITY){
-        if(nd.right != NULL) search(*nd.right, knn, Y, d, prev);
-    }else{
-        if(nd.left != NULL) search(*nd.left, knn, Y, d, prev);
-        if(nd.right != NULL) search(*nd.right, knn, Y, d, prev);
-    }
+    
 }

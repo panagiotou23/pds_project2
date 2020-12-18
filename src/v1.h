@@ -3,7 +3,7 @@
 #include <mpi.h>
 
 //Computes distributed all-kNN of points in X
-knnresult distrAllkNN(double * X, int n, int d, int k){
+knnresult distrAllkNN_1(double * X, int n, int d, int k){
 
     //Store the world rank and size
     int world_rank;
@@ -76,7 +76,6 @@ knnresult distrAllkNN(double * X, int n, int d, int k){
         
         if(receiver == world_size) receiver = 0;
         MPI_Isend(my_X, m * d, MPI_DOUBLE, receiver, 0, MPI_COMM_WORLD, &request);
-        printf("%d sent to %d an array of %d\n", world_rank, receiver, m * d);
 
         if(sender < 0) sender = world_size - 1;
                 
@@ -86,7 +85,6 @@ knnresult distrAllkNN(double * X, int n, int d, int k){
 
         double *other_X = malloc(other_m * d * sizeof(double));
         MPI_Recv(other_X , other_m * d, MPI_DOUBLE, sender, 0, MPI_COMM_WORLD, &status);
-        printf("%d got from %d an array of %d\n", world_rank, sender, other_m*d);
         
         knnresult temp_knn = kNN(other_X, my_X, other_m, m, d, k);
         
