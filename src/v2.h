@@ -36,7 +36,7 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     }
     
     for(int i=0; i<m; i++) 
-        search(vpt, knn.nidx + i * (k+1), knn.ndist + i * (k+1), k+1, my_X + i*d, 0, false, 1);
+        search(vpt, knn.nidx + i * (k+1), knn.ndist + i * (k+1), k+1, my_X + i*d, 0, 0, 1);
 
     for(int i=0; i<m; i++){
         for(int j=0; j<k+1; j++){
@@ -136,7 +136,7 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         }
         
         for(int i=0; i<m; i++) 
-            search(temp_vpt, temp_knn.nidx + i * k, temp_knn.ndist + i * k, k, my_X + i*d, 0, false, 1);
+            search(temp_vpt, temp_knn.nidx + i * k, temp_knn.ndist + i * k, k, my_X + i*d, 0, 0, 1);
 
         if(sender < n%world_size){
             for(int i=0; i<m; i++){
