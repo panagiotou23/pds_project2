@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 
 typedef struct vp_tree{
     int n,
@@ -111,26 +110,25 @@ void add(int *nidx, double *ndist, int k, int idx, double x){
     }
 }
 
-/*******************************FIX BOOL***********************************/
-void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, bool leaf, int points);
+void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, int isLeaf, int points);
 
 void search_l(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index){
     if(vpt.left_cnt[index] > vpt.B){
-        search(vpt, nidx, ndist, k, q, index + 1, false, 1);    
+        search(vpt, nidx, ndist, k, q, index + 1, 0, 1);    
     }else{
-        search(vpt, nidx, ndist, k, q, index + 1, true, vpt.left_cnt[index]);    
+        search(vpt, nidx, ndist, k, q, index + 1, 1, vpt.left_cnt[index]);    
     }
 }
 
 void search_r(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index){
-    if(vpt.right_cnt[index] > vpt.B){
-        search(vpt, nidx, ndist, k, q, index + vpt.left_cnt[index] + 1, false, 1);
+    if(vpt.right_cnt[index] > vpt.B){   
+        search(vpt, nidx, ndist, k, q, index + vpt.left_cnt[index] + 1, 0, 1);
     }else{
-        search(vpt, nidx, ndist, k, q, index + vpt.left_cnt[index] + 1, true, vpt.right_cnt[index]);
+        search(vpt, nidx, ndist, k, q, index + vpt.left_cnt[index] + 1, 1, vpt.right_cnt[index]);
     }
 }
 
-void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, bool leaf, int points){
+void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, int isLeaf, int points){
 
     double x = 0;
     for(int j=0; j<vpt.d; j++) 
@@ -141,7 +139,7 @@ void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, 
         add(nidx, ndist, k, vpt.id[index], x);
     }
 
-    if(!leaf){
+    if(!isLeaf){
         if(x < vpt.mu[index] - ndist[k - 1]){
             search_l(vpt, nidx, ndist, k, q, index);
         }else if(x > vpt.mu[index] + ndist[k - 1]){
