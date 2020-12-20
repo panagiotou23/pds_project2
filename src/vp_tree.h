@@ -14,6 +14,7 @@ typedef struct vp_tree{
 }vp_tree;
 
 /*************************FIX SELECT VP*****************************/
+/**********************CILK FOR MAKE_VP_TREE************************/
 int select_vp(double *X, int *id, int n, int d){
     int i = rand()%n;
     return i;

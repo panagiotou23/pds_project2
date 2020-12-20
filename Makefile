@@ -12,7 +12,6 @@ default: main
 main:
 	$(MPICC) $(CFLAGS) -o $(BIN_DIR)/test $(SRC_DIR)/main.c -lopenblas
 	
-
 .PHONY: clean
 
 clean:

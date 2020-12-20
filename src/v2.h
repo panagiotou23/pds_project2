@@ -1,6 +1,9 @@
 #include "vp_tree.h"
 #include "v1.h"
+
 #include <mpi.h>
+
+#include <unistd.h>
 
 //Computes distributed all-kNN of points in X
 knnresult distrAllkNN_2(double * X, int n, int d, int k){
@@ -17,64 +20,80 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         if(world_rank == i ) m = n/world_size + 1;  //the first will receive one extra 
     }
 
-    double *my_X = malloc(m * d * sizeof(double));
-    if(world_rank < n%world_size){
-        memcpy(my_X, X + world_rank*m * d, m * d * sizeof(double));
-    }else{
-        memcpy(my_X, X + (world_rank*m + n%world_size) * d, m * d * sizeof(double));
+    int *sendcounts = malloc(world_size * sizeof(int));
+    int *displs = malloc(world_size * sizeof(int));    
+
+    for(int i=0; i<world_size; i++) sendcounts[i] = n/world_size * d;
+    for(int i=0; i<n%world_size; i++) sendcounts[i] += d;                     
+   
+    int sum=0; 
+    for(int i=0; i<world_size; i++){
+        displs[i] = sum;
+        sum += sendcounts[i];
     }
+
+    double *my_X = malloc(m * d * sizeof(double));
+
+    MPI_Scatterv(X, sendcounts, displs, 
+                MPI_DOUBLE, my_X, m * d, 
+                MPI_DOUBLE, 
+                0, MPI_COMM_WORLD);
+
+    // free(X);
+    free(sendcounts);
+    free(displs);
 
     vp_tree vpt = make_vp_tree(my_X, m, d, k);
     
-    knnresult knn;
-    knn.k = k+1;
-    knn.m = m;
-    knn.nidx = malloc(m * (k+1) * sizeof(int));
-    knn.ndist = malloc(m * (k+1) * sizeof(double));
+    knnresult my_knn;
+    my_knn.k = k+1;
+    my_knn.m = m;
+    my_knn.nidx = malloc(m * (k+1) * sizeof(int));
+    my_knn.ndist = malloc(m * (k+1) * sizeof(double));
     for(int i=0; i<m*(k+1); i++){
-        knn.ndist[i] = INFINITY;
+        my_knn.ndist[i] = INFINITY;
     }
     
     for(int i=0; i<m; i++) 
-        search(vpt, knn.nidx + i * (k+1), knn.ndist + i * (k+1), k+1, my_X + i*d, 0, 0, 1);
+        search(vpt, my_knn.nidx + i * (k+1), my_knn.ndist + i * (k+1), k+1, my_X + i*d, 0, 0, 1);
 
     for(int i=0; i<m; i++){
         for(int j=0; j<k+1; j++){
-            if(knn.ndist[j + i * (k + 1)] == 0){
-                SWAP(knn.ndist[(k + 1) * (i + 1) - 1], knn.ndist[j + i * (k + 1)], double);
-                SWAP(knn.nidx[(k + 1) * (i + 1) - 1], knn.nidx[j + i * (k + 1)], int);
+            if(my_knn.ndist[j + i * (k + 1)] == 0){
+                SWAP(my_knn.ndist[(k + 1) * (i + 1) - 1], my_knn.ndist[j + i * (k + 1)], double);
+                SWAP(my_knn.nidx[(k + 1) * (i + 1) - 1], my_knn.nidx[j + i * (k + 1)], int);
                 break;
             }
         }
     }
     
-    knnresult final;
-    final.k = k;
-    final.m = m;
-    final.nidx = malloc(m * k * sizeof(int));
-    final.ndist = malloc(m * k * sizeof(double));
+    knnresult knn;
+    knn.k = k;
+    knn.m = m;
+    knn.nidx = malloc(m * k * sizeof(int));
+    knn.ndist = malloc(m * k * sizeof(double));
     for(int i=0; i<m; i++){
-        memcpy(final.nidx + i * k, knn.nidx + i * (k + 1), k * sizeof(int));
-        memcpy(final.ndist + i * k, knn.ndist + i * (k + 1) , k * sizeof(double));   
+        memcpy(knn.nidx + i * k, my_knn.nidx + i * (k + 1), k * sizeof(int));
+        memcpy(knn.ndist + i * k, my_knn.ndist + i * (k + 1) , k * sizeof(double));   
     }
 
 
     if(world_rank < n%world_size){
         for(int i=0; i<m; i++){
             for(int j=0; j<k; j++) {
-                final.nidx[j + i*k] += world_rank * m;
+                knn.nidx[j + i*k] += world_rank * m;
             }
         }
     }else{
         for(int i=0; i<m; i++){
             for(int j=0; j<k; j++) {
-                final.nidx[j + i*k] += world_rank * m  + n%world_size;
+                knn.nidx[j + i*k] += world_rank * m  + n%world_size;
             }
         }
     }
 
     //If there is only one process running return the knn
-    if(world_size == 1) return final;
+    if(world_size == 1) return knn;
 
     
     int receiver = world_rank + 1,
@@ -157,16 +176,16 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
             int *nidx = malloc(2 * k * sizeof(int));
             double *ndist = malloc(2 * k * sizeof(double));
 
-            memcpy(nidx, final.nidx + i * k, k * sizeof(int));            
-            memcpy(ndist, final.ndist + i * k, k * sizeof(double));
+            memcpy(nidx, knn.nidx + i * k, k * sizeof(int));            
+            memcpy(ndist, knn.ndist + i * k, k * sizeof(double));
 
             memcpy(nidx + k, temp_knn.nidx + i * k, k * sizeof(int));            
             memcpy(ndist + k, temp_knn.ndist + i * k, k * sizeof(double));
             
             quickselect(nidx, ndist, 0, (2 * k) - 1, k);
 
-            memcpy(final.nidx + i * k, nidx, k * sizeof(int));            
-            memcpy(final.ndist + i * k, ndist, k * sizeof(double));
+            memcpy(knn.nidx + i * k, nidx, k * sizeof(int));            
+            memcpy(knn.ndist + i * k, ndist, k * sizeof(double));
 
             free(nidx);
             free(ndist);
@@ -176,6 +195,36 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         receiver++;
 
     }
+
+
+    int *recvcounts = malloc(world_size * sizeof(int));
+    int *recvdispls = malloc(world_size * sizeof(int));    
+
+    for(int i=0; i<world_size; i++) recvcounts[i] = n/world_size * k;
+    for(int i=0; i<n%world_size; i++) recvcounts[i] += k;                     
+   
+    sum=0; 
+    for(int i=0; i<world_size; i++){
+        recvdispls[i] = sum;
+        sum += recvcounts[i];
+    }
+
+    knnresult final;
+    final.m = n;
+    final.k = k;
+    final.nidx = malloc(n * k * sizeof(int));
+    final.ndist = malloc(n * k * sizeof(double));
+
+    MPI_Gatherv(knn.nidx, m * k, MPI_INT, 
+                final.nidx, recvcounts, recvdispls, 
+                MPI_INT, 0, MPI_COMM_WORLD);
+                
+    MPI_Gatherv(knn.ndist, m * k, MPI_DOUBLE, 
+                final.ndist, recvcounts, recvdispls, 
+                MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    free(recvcounts);
+    free(recvdispls);
 
     return final;
 }

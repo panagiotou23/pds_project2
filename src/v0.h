@@ -1,4 +1,5 @@
 #include <string.h>
+#include <math.h>
 
 #include <cblas.h>
 /*****************************FIX BLAS**************************************/
@@ -101,30 +102,30 @@ double *calc_Dcol(  double *X,
     return Dcol;
 }
 
-//Calculates the Euclidean distance matrix D 
-double *calc_D( double *X,
-                double *Y,
-                int n,
-                int d,
-                int m)
-{
-    double *D= malloc(n * m * sizeof(double));
+// //Calculates the Euclidean distance matrix D 
+// double *calc_D( double *X,
+//                 double *Y,
+//                 int n,
+//                 int d,
+//                 int m)
+// {
+//     double *D= malloc(n * m * sizeof(double));
     
-    double xsum[n],
-           ysum[m];
-    for(int i=0; i<n; i++) xsum[i] = cblas_ddot(d, X + i*d, 1, X + i*d, 1);
-    for(int i=0; i<m; i++) ysum[i] = cblas_ddot(d, Y + i*d, 1, Y + i*d, 1);
+//     double xsum[n],
+//            ysum[m];
+//     for(int i=0; i<n; i++) xsum[i] = cblas_ddot(d, X + i*d, 1, X + i*d, 1);
+//     for(int i=0; i<m; i++) ysum[i] = cblas_ddot(d, Y + i*d, 1, Y + i*d, 1);
 
-    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, n, m, d, -2, X, d, Y, d, 0, D, m);
+//     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, n, m, d, -2, X, d, Y, d, 0, D, m);
     
-    for(int i=0; i<n; i++){
-        for(int j=0; j<m; j++){
-            D[j + m*i] += xsum[i] + ysum[j]; 
-        }
-    }
+//     for(int i=0; i<n; i++){
+//         for(int j=0; j<m; j++){
+//             D[j + m*i] += xsum[i] + ysum[j]; 
+//         }
+//     }
 
-    return D;
-}
+//     return D;
+// }
 
 //Finds for each point in a query set Y the k nearest neighbors
 //in the corpus set X
@@ -151,7 +152,7 @@ knnresult kNN(  double *X,
         //And memorize their indices
         int * nidx = malloc(n * sizeof(int));
         for(int i=0; i<n; i++) nidx[i] = i;
-        
+
         //Sort the k distances and indices
         quickselect(nidx, ndist, 0, n-1, k);
         
