@@ -1,5 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+
+#include <cilk/cilk.h>
 
 typedef struct vp_tree{
     int n,
@@ -13,11 +16,49 @@ typedef struct vp_tree{
 
 }vp_tree;
 
-/*************************FIX SELECT VP*****************************/
-/**********************CILK FOR MAKE_VP_TREE************************/
-int select_vp(double *X, int *id, int n, int d){
-    int i = rand()%n;
-    return i;
+/********************CILK MAKE_VP_TREE******************************/
+int select_vp(double *X, int *id, int n, int d, int max){
+    
+    int *indices = malloc(max * sizeof(int));
+    for(int i=0; i<max; i++) indices[i] = rand()%n;
+
+    double best_spread = 0;
+    int best_i;
+
+    double sum = 0; 
+    for(int k=0; k<max; k++){
+
+        int *sample = malloc(max * sizeof(int));
+        for(int i=0; i<max; i++) sample[i] = rand()%n;
+
+        for(int i=0; i<max; i++){
+            for(int j=0; j<d; j++){
+                sum += (X[j + indices[k] * d] - X[j + sample[i] * d]) *
+                        (X[j + indices[k] * d] - X[j + sample[i] * d]);
+            }
+        }
+
+        double mu = sqrt(sum)/max;
+        double spread = 0;
+        for(int i=0; i<max; i++){
+            for(int j=0; j<d; j++){
+                spread += (X[j + sample[i] * d] - mu) *
+                            (X[j + sample[i] * d] - mu);
+            }
+        }
+        spread /= (n-1);
+
+        if(spread > best_spread){
+            best_spread = spread;
+            best_i = k;
+        }
+
+        free(sample);
+    }   
+
+    free(indices);
+
+    return best_i;
 }
 
 void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
@@ -33,8 +74,7 @@ void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
         return;
     }
 
-    int vp = select_vp(X, id, n, vpt->d);
-
+    int vp = select_vp(X, id, n, vpt->d, vpt->B);
     vpt->id[index] = id[vp];
     memcpy(vpt->p + index * vpt->d, X + id[vp] * vpt->d, vpt->d * sizeof(double));
 
@@ -44,7 +84,7 @@ void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
             sum += (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]) * 
                     (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]);
 
-    vpt->mu[index] = sum/(n-1);
+    vpt->mu[index] = sqrt(sum)/(n-1);
 
     int left_cnt = 0,
         right_cnt = 0,
@@ -58,6 +98,8 @@ void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
                     (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]);
         
         if(dst == 0) continue;
+
+        dst = sqrt(dst);
 
         if(dst < vpt->mu[index]){
             left_id[left_cnt++] = id[i];
@@ -135,19 +177,18 @@ void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, 
     for(int j=0; j<vpt.d; j++) 
         x += (vpt.p[j + index * vpt.d] - q[j]) *
                 (vpt.p[j + index * vpt.d] - q[j]);
-
+    x = sqrt(x);
     if(x < ndist[k - 1]){
         add(nidx, ndist, k, vpt.id[index], x);
     }
-
     if(!isLeaf){
-        if(x < vpt.mu[index] - ndist[k - 1]){
+        if(x < vpt.mu[index] - ndist[k-1]){
             search_l(vpt, nidx, ndist, k, q, index);
-        }else if(x > vpt.mu[index] + ndist[k - 1]){
+        }else if(x > vpt.mu[index] + ndist[k-1]){
             search_r(vpt, nidx, ndist, k, q, index);
         }else{
-            search_l(vpt, nidx, ndist, k, q, index);
-            search_r(vpt, nidx, ndist, k, q, index);
+            if(vpt.left_cnt[index]) search_l(vpt, nidx, ndist, k, q, index);
+            if(vpt.right_cnt[index]) search_r(vpt, nidx, ndist, k, q, index);
         }
     }else{
         for(int i=1; i<points; i++){
@@ -155,7 +196,7 @@ void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, 
             for(int j=0; j<vpt.d; j++) 
                 x += (vpt.p[j + (index + i) * vpt.d] - q[j]) *
                         (vpt.p[j + (index + i) * vpt.d] - q[j]);
-        
+            x = sqrt(x);
             if(x < ndist[k - 1]){
                 add(nidx, ndist, k, vpt.id[index + i], x);
             }

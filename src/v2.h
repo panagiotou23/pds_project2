@@ -41,8 +41,24 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     free(sendcounts);
     free(displs);
 
+    //Declare the variables used to time the function
+    struct timespec ts_start;
+    struct timespec ts_end;
+
+    //Start the clock
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+
     vp_tree vpt = make_vp_tree(my_X, m, d, k);
-    
+
+    //Stop the clock
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+
+    //Calculate time 
+    long tree_time = (ts_end.tv_sec - ts_start.tv_sec)* 1000000 + (ts_end.tv_nsec - ts_start.tv_nsec)/ 1000;
+
+    if(world_rank == 0)
+        printf("Tree time\n%ld us\n%f s\n\n", tree_time, tree_time*1e-6);
+
     knnresult my_knn;
     my_knn.k = k+1;
     my_knn.m = m;
@@ -51,20 +67,44 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     for(int i=0; i<m*(k+1); i++){
         my_knn.ndist[i] = INFINITY;
     }
-    
+
+    //Start the clock
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+
     for(int i=0; i<m; i++) 
         search(vpt, my_knn.nidx + i * (k+1), my_knn.ndist + i * (k+1), k+1, my_X + i*d, 0, 0, 1);
+    
+    //Stop the clock
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
 
+    //Calculate time 
+    long search_time = (ts_end.tv_sec - ts_start.tv_sec)* 1000000 + (ts_end.tv_nsec - ts_start.tv_nsec)/ 1000;
+
+    if(world_rank == 0)
+        printf("Search time\n%ld us\n%f s\n\n", search_time, search_time*1e-6);
+
+    
+    int offset;
+    if(world_rank < n%world_size){
+        offset = world_rank * m;
+    }else{
+        offset = world_rank * m  + n%world_size;
+    }
+    for(int i=0; i<m; i++){
+        for(int j=0; j<k+1; j++) {
+            my_knn.nidx[j + i*(k+1)] += offset;
+        }
+    }
     for(int i=0; i<m; i++){
         for(int j=0; j<k+1; j++){
-            if(my_knn.ndist[j + i * (k + 1)] == 0){
+            if(my_knn.nidx[j + i * (k + 1)] == i + offset){
                 SWAP(my_knn.ndist[(k + 1) * (i + 1) - 1], my_knn.ndist[j + i * (k + 1)], double);
                 SWAP(my_knn.nidx[(k + 1) * (i + 1) - 1], my_knn.nidx[j + i * (k + 1)], int);
                 break;
             }
         }
     }
-    
+
     knnresult knn;
     knn.k = k;
     knn.m = m;
@@ -75,20 +115,6 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         memcpy(knn.ndist + i * k, my_knn.ndist + i * (k + 1) , k * sizeof(double));   
     }
 
-
-    if(world_rank < n%world_size){
-        for(int i=0; i<m; i++){
-            for(int j=0; j<k; j++) {
-                knn.nidx[j + i*k] += world_rank * m;
-            }
-        }
-    }else{
-        for(int i=0; i<m; i++){
-            for(int j=0; j<k; j++) {
-                knn.nidx[j + i*k] += world_rank * m  + n%world_size;
-            }
-        }
-    }
 
     //If there is only one process running return the knn
     if(world_size == 1) return knn;
@@ -151,9 +177,21 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         for(int i=0; i<m*k; i++){
             temp_knn.ndist[i] = INFINITY;
         }
-        
+
+        //Start the clock
+        clock_gettime(CLOCK_MONOTONIC, &ts_start);
+
         for(int i=0; i<m; i++) 
             search(temp_vpt, temp_knn.nidx + i * k, temp_knn.ndist + i * k, k, my_X + i*d, 0, 0, 1);
+
+        //Stop the clock
+        clock_gettime(CLOCK_MONOTONIC, &ts_end);
+
+        //Calculate time 
+        search_time = (ts_end.tv_sec - ts_start.tv_sec)* 1000000 + (ts_end.tv_nsec - ts_start.tv_nsec)/ 1000;
+
+        if(world_rank == 0)
+            printf("Search time\n%ld us\n%f s\n\n", search_time, search_time*1e-6);
 
         if(sender < n%world_size){
             for(int i=0; i<m; i++){
@@ -168,7 +206,7 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
                 }
             }
         }
-
+                    
         for(int i=0; i<m; i++){
 
             int *nidx = malloc(2 * k * sizeof(int));

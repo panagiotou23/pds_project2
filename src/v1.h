@@ -41,10 +41,21 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
     free(displs);
 
     knnresult my_knn = kNN(my_X, my_X, m, m, d, k + 1);
-    
+
+    int offset;
+    if(world_rank < n%world_size){
+        offset = world_rank * m;
+    }else{
+        offset = world_rank * m  + n%world_size;
+    }
+    for(int i=0; i<m; i++){
+        for(int j=0; j<k+1; j++) {
+            my_knn.nidx[j + i*(k+1)] += offset;
+        }
+    }
     for(int i=0; i<m; i++){
         for(int j=0; j<k+1; j++){
-            if(my_knn.ndist[j + i * (k + 1)] == 0){
+            if(my_knn.nidx[j + i * (k + 1)] == i + offset){
                 SWAP(my_knn.ndist[(k + 1) * (i + 1) - 1], my_knn.ndist[j + i * (k + 1)], double);
                 SWAP(my_knn.nidx[(k + 1) * (i + 1) - 1], my_knn.nidx[j + i * (k + 1)], int);
                 break;
@@ -60,21 +71,6 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
     for(int i=0; i<m; i++){
         memcpy(knn.nidx + i * k, my_knn.nidx + i * (k + 1), k * sizeof(int));
         memcpy(knn.ndist + i * k, my_knn.ndist + i * (k + 1) , k * sizeof(double));   
-    }
-
-
-    if(world_rank < n%world_size){
-        for(int i=0; i<m; i++){
-            for(int j=0; j<k; j++) {
-                knn.nidx[j + i*k] += world_rank * m;
-            }
-        }
-    }else{
-        for(int i=0; i<m; i++){
-            for(int j=0; j<k; j++) {
-                knn.nidx[j + i*k] += world_rank * m  + n%world_size;
-            }
-        }
     }
 
     //If there is only one process running return the knn
@@ -145,6 +141,7 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
 
     }
 
+    for(int i=0; i<m*k; i++) knn.ndist[i] = sqrt(knn.ndist[i]);
 
     int *recvcounts = malloc(world_size * sizeof(int));
     int *recvdispls = malloc(world_size * sizeof(int));    
