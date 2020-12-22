@@ -7,8 +7,6 @@
 
 #include "v2.h"
 
-#include <unistd.h>
-
 /*****************************ADD READ MAT************************************/
 
 double *create_X(int n, int d){
@@ -48,9 +46,9 @@ int main(int argc, char *argv[]){
 
     //Set the number and dimensions of the data points
     int n = 50e3;
-    int d = 20;
+    int d = 3;
     //Set the number of nearest neighbours
-    int k = 100;
+    int k = 10;
 
     double *X;
 
@@ -102,21 +100,44 @@ int main(int argc, char *argv[]){
     //Calculate time 
     long v2_time = (ts_end.tv_sec - ts_start.tv_sec)* 1000000 + (ts_end.tv_nsec - ts_start.tv_nsec)/ 1000;
     
-    if(!world_rank){
+    if(world_rank == 0){
         printf("V2 time\n%ld us\n%f s\n\n", v2_time, v2_time*1e-6);
         // for(int i=0; i<n; i++){
-        //     double *D;
-        //     printf("For: %d\n", i);
-        //     D = calc_Dcol(X, X, n, d, i);
-        //     printf("D\n");
-        //     for(int i=0; i<n; i++) printf("%d\t%.03f\n", i, D[i]);
-        //     printf("\n\n");
-        //     for(int j=0; j<k; j++) printf("Dist: %.03f  \tIdx: %d\n", knn2.ndist[j + i * k], knn2.nidx[j + i * k]);
-        //     printf("\n\n");
+            // double *D;
+            // printf("For: %d\n", i);
+            // D = calc_Dcol(X, X, n, d, i);
+            // printf("D\n");
+            // for(int i=0; i<n; i++) printf("%d\t%.03f\n", i, D[i]);
+            // printf("\n\n");
+            // for(int j=0; j<k; j++) printf("Dist: %.03f  \tIdx: %d\n", knn2.ndist[j + i * k], knn2.nidx[j + i * k]);
+            // printf("\n\n");
         // }
+
+
+        int wrong_cnt = 0;
+        for(int i=0; i<1; i++){
+
+            k_select(knn1.nidx, knn1.ndist, k, k);
+            k_select(knn2.nidx, knn2.ndist, k, k);
+            
+            for(int j=0; j<k; j++){
+                if(knn1.nidx[j + i * k] != knn2.nidx[j + i * k]){
+                    wrong_cnt++;
+                    printf("%d\nDiff: %lf\n", i, knn1.ndist[j + i * k] - knn2.ndist[j + i * k]);
+                    for(int j=0; j<k; j++) printf("Dist: %.03f  \tIdx: %d\n", knn1.ndist[j + i * k], knn1.nidx[j + i * k]);
+                    printf("\n");
+                    for(int j=0; j<k; j++) printf("Dist: %.03f  \tIdx: %d\n", knn2.ndist[j + i * k], knn2.nidx[j + i * k]);
+                    printf("\n\n");
+                    break;
+                }
+            }
+
+        }
+        if(wrong_cnt) printf("Wrong %d times\n", wrong_cnt);
+
+        free(X);
     }
     
-    free(X);
     MPI_Finalize();
     return 0;
 }

@@ -40,7 +40,23 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
     free(sendcounts);
     free(displs);
 
+    //Declare the variables used to time the function
+    struct timespec ts_start;
+    struct timespec ts_end;
+
+    //Start the clock
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+
     knnresult my_knn = kNN(my_X, my_X, m, m, d, k + 1);
+
+    //Stop the clock
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+
+    //Calculate time 
+    long v0_time = (ts_end.tv_sec - ts_start.tv_sec)* 1000000 + (ts_end.tv_nsec - ts_start.tv_nsec)/ 1000;
+
+    if(world_rank == 0)
+        printf("V0 time\n%ld us\n%f s\n\n", v0_time, v0_time*1e-6);
 
     int offset;
     if(world_rank < n%world_size){
@@ -98,8 +114,20 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
         double *other_X = malloc(other_m * d * sizeof(double));
         MPI_Recv(other_X , other_m * d, MPI_DOUBLE, sender, 0, MPI_COMM_WORLD, &status);
         
+        //Start the clock
+        clock_gettime(CLOCK_MONOTONIC, &ts_start);
+
         knnresult temp_knn = kNN(other_X, my_X, other_m, m, d, k);
         
+        //Stop the clock
+        clock_gettime(CLOCK_MONOTONIC, &ts_end);
+
+        //Calculate time 
+        v0_time = (ts_end.tv_sec - ts_start.tv_sec)* 1000000 + (ts_end.tv_nsec - ts_start.tv_nsec)/ 1000;
+
+        if(world_rank == 0)
+            printf("V0 time\n%ld us\n%f s\n\n", v0_time, v0_time*1e-6);
+
         if(sender < n%world_size){
             for(int i=0; i<m; i++){
                 for(int j=0; j<k; j++) {
