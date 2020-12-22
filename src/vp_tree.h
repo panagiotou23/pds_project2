@@ -16,7 +16,8 @@ typedef struct vp_tree{
 
 }vp_tree;
 
-/********************CILK MAKE_VP_TREE******************************/
+/********************PARALLEL MAKE_VP_TREE******************************/
+/***********CHECK IF I CAN MAKE A LIST FOR DISTANCES****************/
 int select_vp(double *X, int *id, int n, int d, int max){
     
     int *indices = malloc(max * sizeof(int));
