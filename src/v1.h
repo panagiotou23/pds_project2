@@ -2,8 +2,6 @@
 
 #include <mpi.h>
 
-/**********************CHANGE COMMUNNICATION OF DATA RING**********************************/
-
 //Computes distributed all-kNN of points in X
 knnresult distrAllkNN_1(double * X, int n, int d, int k){
 
@@ -38,7 +36,6 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
                 MPI_DOUBLE, 
                 0, MPI_COMM_WORLD);
 
-    // free(X);
     free(sendcounts);
     free(displs);
 
@@ -97,18 +94,24 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
     int receiver = world_rank + 1,
         sender = world_rank - 1;
         
-    for(int i=0; i<world_size-1; i++){
+    if(sender < 0) sender = world_size - 1;
+    if(receiver == world_size) receiver = 0;
 
+    double *Z = malloc(m * d * sizeof(double));
+    memcpy(Z, my_X, m * d * sizeof(double));
+    int other_m = m;
+
+    int points_owner = sender;
+
+    for(int i=0; i<world_size-1; i++){
+        
         int flag = 0;
-        int other_m;
         MPI_Status status;
         MPI_Request request;
+        int prev_m = other_m;
         
-        if(receiver == world_size) receiver = 0;
-        MPI_Isend(my_X, m * d, MPI_DOUBLE, receiver, 0, MPI_COMM_WORLD, &request);
+        MPI_Isend(Z, other_m * d, MPI_DOUBLE, receiver, 0, MPI_COMM_WORLD, &request);
 
-        if(sender < 0) sender = world_size - 1;
-                
         while(!flag) MPI_Iprobe( sender, 0, MPI_COMM_WORLD, &flag, &status);
         MPI_Get_count( &status, MPI_DOUBLE, &other_m );        
         other_m /= d;
@@ -130,19 +133,21 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
         if(world_rank == 0)
             printf("V0 time\n%ld us\n%f s\n\n", v0_time, v0_time*1e-6);
 
-        if(sender < n%world_size){
-            for(int i=0; i<m; i++){
-                for(int j=0; j<k; j++) {
-                    temp_knn.nidx[j + i*k] += sender * other_m;
-                }
-            }
+        int owner_offset;
+        if(points_owner < n%world_size){
+            owner_offset = points_owner * other_m;
         }else{
-            for(int i=0; i<m; i++){
-                for(int j=0; j<k; j++) {
-                    temp_knn.nidx[j + i*k] += sender * other_m + n%world_size;
-                }
+            owner_offset = points_owner * other_m + n%world_size;
+        }
+
+        for(int i=0; i<m; i++){
+            for(int j=0; j<k; j++) {
+                temp_knn.nidx[j + i*k] += owner_offset;
             }
         }
+
+        points_owner--;
+        if(points_owner < 0) points_owner = world_size - 1;
 
         for(int i=0; i<m; i++){
 
@@ -164,10 +169,13 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
             free(ndist);
         }
 
-        free(other_X);
+        MPI_Wait(&request, NULL);
 
-        sender--;
-        receiver++;
+        if(other_m != prev_m){
+            Z = realloc(Z, other_m * d * sizeof(double));
+        }
+        memcpy(Z, other_X, other_m * d * sizeof(double));
+        free(other_X);
 
     }
 
