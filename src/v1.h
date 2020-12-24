@@ -2,6 +2,8 @@
 
 #include <mpi.h>
 
+/**********************CHANGE COMMUNNICATION OF DATA RING**********************************/
+
 //Computes distributed all-kNN of points in X
 knnresult distrAllkNN_1(double * X, int n, int d, int k){
 
