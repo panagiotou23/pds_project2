@@ -3,6 +3,7 @@
 
 #include <mpi.h>
 
+/**********************CHECK REALLOC**************************************/
 //Computes distributed all-kNN of points in X
 knnresult distrAllkNN_2(double * X, int n, int d, int k){
 
@@ -58,6 +59,16 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
 
     if(world_rank == 0)
         printf("Tree time\n%ld us\n%f s\n\n", tree_time, tree_time*1e-6);
+    
+    int offset;
+    if(world_rank < n%world_size){
+        offset = world_rank * m;
+    }else{
+        offset = world_rank * m  + n%world_size;
+    }
+
+    for(int i=0; i<m; i++)
+        vpt.id[i] += offset;
 
     knnresult my_knn;
     my_knn.k = k+1;
@@ -71,9 +82,10 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     //Start the clock
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
-    for(int i=0; i<m; i++) 
+    for(int i=0; i<m; i++)
         search(vpt, my_knn.nidx + i * (k+1), my_knn.ndist + i * (k+1), k+1, my_X + i*d, 0, 0, 1);
     
+
     //Stop the clock
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
 
@@ -83,23 +95,11 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     if(world_rank == 0)
         printf("Search time\n%ld us\n%f s\n\n", search_time, search_time*1e-6);
 
-    
-    int offset;
-    if(world_rank < n%world_size){
-        offset = world_rank * m;
-    }else{
-        offset = world_rank * m  + n%world_size;
-    }
-    for(int i=0; i<m; i++){
-        for(int j=0; j<k+1; j++) {
-            my_knn.nidx[j + i*(k+1)] += offset;
-        }
-    }
     for(int i=0; i<m; i++){
         for(int j=0; j<k+1; j++){
             if(my_knn.nidx[j + i * (k + 1)] == i + offset){
-                SWAP(my_knn.ndist[(k + 1) * (i + 1) - 1], my_knn.ndist[j + i * (k + 1)], double);
-                SWAP(my_knn.nidx[(k + 1) * (i + 1) - 1], my_knn.nidx[j + i * (k + 1)], int);
+                memmove(my_knn.ndist + j + i * (k + 1), my_knn.ndist + j + 1 + i * (k + 1), (k - j) * sizeof(double));
+                memmove(my_knn.nidx + j + i * (k + 1), my_knn.nidx + j + 1 + i * (k + 1), (k - j) * sizeof(int));
                 break;
             }
         }
@@ -114,7 +114,6 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         memcpy(knn.nidx + i * k, my_knn.nidx + i * (k + 1), k * sizeof(int));
         memcpy(knn.ndist + i * k, my_knn.ndist + i * (k + 1) , k * sizeof(double));   
     }
-
 
     //If there is only one process running return the knn
     if(world_size == 1) return knn;
@@ -168,21 +167,12 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         MPI_Irecv(temp_vpt.right_cnt, other_m, MPI_INT, sender, 4, MPI_COMM_WORLD, &requests[9]);
 
         MPI_Waitall(10, requests, statuses);
-        
-        knnresult temp_knn;
-        temp_knn.k = k;
-        temp_knn.m = m;
-        temp_knn.nidx = malloc(m * k * sizeof(int));
-        temp_knn.ndist = malloc(m * k * sizeof(double));
-        for(int i=0; i<m*k; i++){
-            temp_knn.ndist[i] = INFINITY;
-        }
 
         //Start the clock
         clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
         for(int i=0; i<m; i++) 
-            search(temp_vpt, temp_knn.nidx + i * k, temp_knn.ndist + i * k, k, my_X + i*d, 0, 0, 1);
+            search(temp_vpt, knn.nidx + i * k, knn.ndist + i * k, k, my_X + i*d, 0, 0, 1);
 
         //Stop the clock
         clock_gettime(CLOCK_MONOTONIC, &ts_end);
@@ -192,40 +182,6 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
 
         if(world_rank == 0)
             printf("Search time\n%ld us\n%f s\n\n", search_time, search_time*1e-6);
-
-        if(sender < n%world_size){
-            for(int i=0; i<m; i++){
-                for(int j=0; j<k; j++) {
-                    temp_knn.nidx[j + i*k] += sender * other_m;
-                }
-            }
-        }else{
-            for(int i=0; i<m; i++){
-                for(int j=0; j<k; j++) {
-                    temp_knn.nidx[j + i*k] += sender * other_m + n%world_size;
-                }
-            }
-        }
-                    
-        for(int i=0; i<m; i++){
-
-            int *nidx = malloc(2 * k * sizeof(int));
-            double *ndist = malloc(2 * k * sizeof(double));
-
-            memcpy(nidx, knn.nidx + i * k, k * sizeof(int));            
-            memcpy(ndist, knn.ndist + i * k, k * sizeof(double));
-
-            memcpy(nidx + k, temp_knn.nidx + i * k, k * sizeof(int));            
-            memcpy(ndist + k, temp_knn.ndist + i * k, k * sizeof(double));
-            
-            quickselect(nidx, ndist, 0, (2 * k) - 1, k);
-
-            memcpy(knn.nidx + i * k, nidx, k * sizeof(int));            
-            memcpy(knn.ndist + i * k, ndist, k * sizeof(double));
-
-            free(nidx);
-            free(ndist);
-        }
 
         sender--;
         receiver++;
