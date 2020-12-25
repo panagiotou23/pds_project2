@@ -3,7 +3,6 @@
 
 #include <mpi.h>
 
-/**********************CHECK REALLOC**************************************/
 //Computes distributed all-kNN of points in X
 knnresult distrAllkNN_2(double * X, int n, int d, int k){
 
@@ -116,7 +115,7 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     }
     free(my_knn.nidx);
     free(my_knn.ndist);
-    
+
     //If there is only one process running return the knn
     if(world_size == 1) return knn;
 
