@@ -143,6 +143,45 @@ knnresult kNN(  double *X,
     knn.nidx = malloc(m * k * sizeof(int));
     knn.ndist = malloc(m * k * sizeof(double));
 
+    double *D = calc_D(X, Y, n, d, m);
+
+    for(int j=0; j<m; j++){
+
+        int * nidx = malloc(n * sizeof(int));
+        double * ndist = malloc(n * sizeof(double));
+
+        for(int i=0; i<n; i++){
+            nidx[i] = i;
+            ndist[i] = D[i * m + j];
+        }
+
+        quickselect(nidx, ndist, 0, n-1, k);
+        
+        memcpy(knn.nidx + j * k, nidx, k * sizeof(int));
+        memcpy(knn.ndist + j * k, ndist, k * sizeof(double));
+        
+        free(nidx);
+        free(ndist);
+    }
+    free(D);
+    
+    return knn;
+}
+
+knnresult better_kNN(  double *X,
+                double *Y,
+                int n,
+                int m,
+                int d,
+                int k)
+{
+
+    knnresult knn;
+    knn.m = m;
+    knn.k = k;
+    knn.nidx = malloc(m * k * sizeof(int));
+    knn.ndist = malloc(m * k * sizeof(double));
+
     //For every point in Y
     for(int j=0; j<m; j++){
 
