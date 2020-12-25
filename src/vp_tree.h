@@ -16,10 +16,12 @@ typedef struct vp_tree{
 
 }vp_tree;
 
-/********************PARALLEL MAKE_VP_TREE******************************/
-/***********CHECK IF I CAN MAKE A LIST FOR DISTANCES****************/
+/********************PARALLEL MAKE_VP_TREE***************************/
+/**********************CHANGE SELECT VP*****************************/
 int select_vp(double *X, int *id, int n, int d, int max){
     
+    return rand()%n;
+
     int *indices = malloc(max * sizeof(int));
     for(int i=0; i<max; i++) indices[i] = rand()%n;
 
@@ -79,11 +81,18 @@ void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
     vpt->id[index] = id[vp];
     memcpy(vpt->p + index * vpt->d, X + id[vp] * vpt->d, vpt->d * sizeof(double));
 
+    double *distances = malloc(n * sizeof(double));
     double sum = 0;
-    for(int i=0; i<n; i++)
-        for(int j=0; j<vpt->d; j++) 
-            sum += (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]) * 
+
+    for(int i=0; i<n; i++){
+        distances[i] = 0;
+        for(int j=0; j<vpt->d; j++){
+            distances[i] += (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]) *
                     (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]);
+        }
+        sum += distances[i];
+        distances[i] = sqrt(distances[i]);
+    }
 
     vpt->mu[index] = sqrt(sum)/(n-1);
 
@@ -93,27 +102,23 @@ void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
         *right_id = malloc(n * sizeof(int));
 
     for(int i=0; i<n; i++){
-        double dst = 0;
-        for(int j=0; j<vpt->d; j++) 
-            dst += (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]) *
-                    (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]);
-        
-        if(dst == 0) continue;
+        if(distances[i] == 0) continue;
 
-        dst = sqrt(dst);
-
-        if(dst < vpt->mu[index]){
+        if(distances[i] < vpt->mu[index]){
             left_id[left_cnt++] = id[i];
         }else{
             right_id[right_cnt++] = id[i];
         }
     }
+    free(distances);
 
     vpt->left_cnt[index] = left_cnt;
     vpt->right_cnt[index] = right_cnt;
 
     make_vp_node(X, left_id, vpt, index + 1, left_cnt);
+    free(left_id);
     make_vp_node(X, right_id, vpt, index + left_cnt+1, right_cnt);
+    free(right_id);
 
 }
 
@@ -184,9 +189,9 @@ void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, 
     }
     if(!isLeaf){
         if(x < vpt.mu[index] - ndist[k-1]){
-            search_l(vpt, nidx, ndist, k, q, index);
+            if(vpt.left_cnt[index]) search_l(vpt, nidx, ndist, k, q, index);
         }else if(x > vpt.mu[index] + ndist[k-1]){
-            search_r(vpt, nidx, ndist, k, q, index);
+            if(vpt.right_cnt[index]) search_r(vpt, nidx, ndist, k, q, index);
         }else{
             if(vpt.left_cnt[index]) search_l(vpt, nidx, ndist, k, q, index);
             if(vpt.right_cnt[index]) search_r(vpt, nidx, ndist, k, q, index);
