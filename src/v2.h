@@ -114,7 +114,9 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         memcpy(knn.nidx + i * k, my_knn.nidx + i * (k + 1), k * sizeof(int));
         memcpy(knn.ndist + i * k, my_knn.ndist + i * (k + 1) , k * sizeof(double));   
     }
-
+    free(my_knn.nidx);
+    free(my_knn.ndist);
+    
     //If there is only one process running return the knn
     if(world_size == 1) return knn;
 

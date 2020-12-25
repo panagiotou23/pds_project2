@@ -68,16 +68,17 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
             my_knn.nidx[j + i*(k+1)] += offset;
         }
     }
+    
     for(int i=0; i<m; i++){
         for(int j=0; j<k+1; j++){
             if(my_knn.nidx[j + i * (k + 1)] == i + offset){
-                SWAP(my_knn.ndist[(k + 1) * (i + 1) - 1], my_knn.ndist[j + i * (k + 1)], double);
-                SWAP(my_knn.nidx[(k + 1) * (i + 1) - 1], my_knn.nidx[j + i * (k + 1)], int);
+                memmove(my_knn.ndist + j + i * (k + 1), my_knn.ndist + j + 1 + i * (k + 1), (k - j) * sizeof(double));
+                memmove(my_knn.nidx + j + i * (k + 1), my_knn.nidx + j + 1 + i * (k + 1), (k - j) * sizeof(int));
                 break;
             }
         }
     }
-    
+
     knnresult knn;
     knn.k = k;
     knn.m = m;
@@ -87,6 +88,8 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
         memcpy(knn.nidx + i * k, my_knn.nidx + i * (k + 1), k * sizeof(int));
         memcpy(knn.ndist + i * k, my_knn.ndist + i * (k + 1) , k * sizeof(double));   
     }
+    free(my_knn.nidx);
+    free(my_knn.ndist);
 
     //If there is only one process running return the knn
     if(world_size == 1) return knn;
