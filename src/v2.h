@@ -122,22 +122,25 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     int receiver = world_rank + 1,
         sender = world_rank - 1;
 
+                
+    if(sender < 0) sender = world_size - 1;
+    if(receiver == world_size) receiver = 0;
+
+    vp_tree prev_vpt = vpt;
+
+    int other_m = m;
+
     for(int i=0; i<world_size-1; i++){
 
         int flag = 0;
-        int other_m;
         MPI_Status status, statuses[10];
         MPI_Request requests[10];
         
-        if(receiver == world_size) receiver = 0;
-
-        MPI_Isend(vpt.id, m, MPI_INT, receiver, 0, MPI_COMM_WORLD, &requests[0]);
-        MPI_Isend(vpt.p, m * d, MPI_DOUBLE, receiver, 1, MPI_COMM_WORLD, &requests[1]);
-        MPI_Isend(vpt.mu, m, MPI_DOUBLE, receiver, 2, MPI_COMM_WORLD, &requests[2]);
-        MPI_Isend(vpt.left_cnt, m, MPI_INT, receiver, 3, MPI_COMM_WORLD, &requests[3]);
-        MPI_Isend(vpt.right_cnt, m, MPI_INT, receiver, 4, MPI_COMM_WORLD, &requests[4]);
-
-        if(sender < 0) sender = world_size - 1;
+        MPI_Isend(prev_vpt.id, other_m, MPI_INT, receiver, 0, MPI_COMM_WORLD, &requests[0]);
+        MPI_Isend(prev_vpt.p, other_m * d, MPI_DOUBLE, receiver, 1, MPI_COMM_WORLD, &requests[1]);
+        MPI_Isend(prev_vpt.mu, other_m, MPI_DOUBLE, receiver, 2, MPI_COMM_WORLD, &requests[2]);
+        MPI_Isend(prev_vpt.left_cnt, other_m, MPI_INT, receiver, 3, MPI_COMM_WORLD, &requests[3]);
+        MPI_Isend(prev_vpt.right_cnt, other_m, MPI_INT, receiver, 4, MPI_COMM_WORLD, &requests[4]);
 
         while(!flag) MPI_Iprobe(sender, MPI_ANY_TAG, MPI_COMM_WORLD, &flag, &status);
         if(status.MPI_TAG == 1 || status.MPI_TAG == 2){
@@ -183,9 +186,7 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         if(world_rank == 0)
             printf("Search time\n%ld us\n%f s\n\n", search_time, search_time*1e-6);
 
-        sender--;
-        receiver++;
-
+        prev_vpt = temp_vpt;
     }
 
 
