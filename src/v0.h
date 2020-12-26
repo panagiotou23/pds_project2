@@ -127,6 +127,32 @@ double *calc_D( double *X,
     return D;
 }
 
+void calc_part_knn( double *D,
+                    int n,
+                    int m,
+                    int k,
+                    int col,
+                    int *final_nidx,
+                    double *final_ndist)
+{
+
+    int * nidx = (int *)malloc(n * sizeof(int));
+    double * ndist = (double *)malloc(n * sizeof(double));
+
+    for(int i=0; i<n; i++){
+        nidx[i] = i;
+        ndist[i] = D[i * m + col];
+    }
+
+    quickselect(nidx, ndist, 0, n-1, k);
+    
+    memcpy(final_nidx, nidx, k * sizeof(int));
+    memcpy(final_ndist, ndist, k * sizeof(double));
+    
+    free(nidx);
+    free(ndist);
+}
+
 //Finds for each point in a query set Y the k nearest neighbors
 //in the corpus set X
 knnresult kNN(  double *X,
@@ -143,37 +169,42 @@ knnresult kNN(  double *X,
     knn.nidx = (int *)malloc(m * k * sizeof(int));
     knn.ndist = (double *)malloc(m * k * sizeof(double));
 
-    double *D = calc_D(X, Y, n, d, m);
+    int max_m = 1e3;
+    if(m > max_m){
+        
+        int iteration_m[m/max_m];
+        for(int i=0; i<m/max_m; i++) iteration_m[i] = max_m;
+        iteration_m[m/max_m - 1] = max_m + m%max_m;
+        
+        int displ = 0;
+        for(int i=0; i<m/max_m; i++){
+            double *D = calc_D(X, Y + displ * d, n, d, iteration_m[i]);
 
-    for(int j=0; j<m; j++){
+            for(int j=0; j<iteration_m[i]; j++) calc_part_knn(D, n, iteration_m[i], k, j, knn.nidx + (j + displ) * k, knn.ndist + (j + displ) * k);
 
-        int * nidx = (int *)malloc(n * sizeof(int));
-        double * ndist = (double *)malloc(n * sizeof(double));
-
-        for(int i=0; i<n; i++){
-            nidx[i] = i;
-            ndist[i] = D[i * m + j];
+            free(D);
+            displ += iteration_m[i];
         }
 
-        quickselect(nidx, ndist, 0, n-1, k);
-        
-        memcpy(knn.nidx + j * k, nidx, k * sizeof(int));
-        memcpy(knn.ndist + j * k, ndist, k * sizeof(double));
-        
-        free(nidx);
-        free(ndist);
+    }else{
+
+        double *D = calc_D(X, Y, n, d, m);
+
+        for(int j=0; j<m; j++) calc_part_knn(D, n, m, k, j, knn.nidx + j * k, knn.ndist + j * k);
+
+        free(D);
+
     }
-    free(D);
-    
+
     return knn;
 }
 
-knnresult better_kNN(  double *X,
-                double *Y,
-                int n,
-                int m,
-                int d,
-                int k)
+knnresult alt_kNN(  double *X,
+                    double *Y,
+                    int n,
+                    int m,
+                    int d,
+                    int k)
 {
 
     knnresult knn;
