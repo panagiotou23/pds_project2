@@ -2,7 +2,7 @@
 #include <math.h>
 
 #include <cblas.h>
-/*****************************ADD M LIMITATION**************************************/
+
 #define SWAP(x, y, T) do { T SWAP = x; x = y; y = SWAP; } while (0)
 
 //The Struct that contains the k nearest neighbors of m queries

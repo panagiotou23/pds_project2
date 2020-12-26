@@ -2,8 +2,6 @@
 #include <string.h>
 #include <math.h>
 
-#include <cilk/cilk.h>
-
 typedef struct vp_tree{
     int n,
         d,
@@ -16,7 +14,6 @@ typedef struct vp_tree{
 
 }vp_tree;
 
-/********************PARALLEL MAKE_VP_TREE***************************/
 int select_vp(double *X, int *id, int n, int d, int max){
 
     int *indices = (int *)malloc(max * sizeof(int)),
