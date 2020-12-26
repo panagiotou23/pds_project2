@@ -40,10 +40,10 @@ int main(int argc, char *argv[]){
     srand(time(0));
 
     //Set the number and dimensions of the data points
-    int n = 50e3;
+    int n = 25e3;
     int d = 3;
     //Set the number of nearest neighbours
-    int k = 100;
+    int k = 10;
 
     double *X;
 
@@ -127,7 +127,7 @@ int main(int argc, char *argv[]){
 
 
         }
-        printf("Speedup %f% \n", (float)v1_time/v2_time * 100);
+        printf("Speedup %f\n", (float)v1_time/v2_time);
         if(wrong_cnt) printf("Wrong %d times\n", wrong_cnt);
 
         free(X);
