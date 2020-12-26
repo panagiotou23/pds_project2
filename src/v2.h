@@ -18,8 +18,8 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         if(world_rank == i ) m = n/world_size + 1;  //the first will receive one extra 
     }
 
-    int *sendcounts = malloc(world_size * sizeof(int));
-    int *displs = malloc(world_size * sizeof(int));    
+    int *sendcounts = (int *)malloc(world_size * sizeof(int));
+    int *displs = (int *)malloc(world_size * sizeof(int));    
 
     for(int i=0; i<world_size; i++) sendcounts[i] = n/world_size * d;
     for(int i=0; i<n%world_size; i++) sendcounts[i] += d;                     
@@ -30,7 +30,7 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         sum += sendcounts[i];
     }
 
-    double *my_X = malloc(m * d * sizeof(double));
+    double *my_X = (double *)malloc(m * d * sizeof(double));
 
     MPI_Scatterv(X, sendcounts, displs, 
                 MPI_DOUBLE, my_X, m * d, 
@@ -48,7 +48,7 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     //Start the clock
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
-    vp_tree vpt = make_vp_tree(my_X, m, d, k);
+    vp_tree vpt = make_vp_tree(my_X, m, d, k/10);
 
     //Stop the clock
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
@@ -72,8 +72,8 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     knnresult my_knn;
     my_knn.k = k+1;
     my_knn.m = m;
-    my_knn.nidx = malloc(m * (k+1) * sizeof(int));
-    my_knn.ndist = malloc(m * (k+1) * sizeof(double));
+    my_knn.nidx = (int *)malloc(m * (k+1) * sizeof(int));
+    my_knn.ndist = (double *)malloc(m * (k+1) * sizeof(double));
     for(int i=0; i<m*(k+1); i++){
         my_knn.ndist[i] = INFINITY;
     }
@@ -107,8 +107,8 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     knnresult knn;
     knn.k = k;
     knn.m = m;
-    knn.nidx = malloc(m * k * sizeof(int));
-    knn.ndist = malloc(m * k * sizeof(double));
+    knn.nidx = (int *)malloc(m * k * sizeof(int));
+    knn.ndist = (double *)malloc(m * k * sizeof(double));
     for(int i=0; i<m; i++){
         memcpy(knn.nidx + i * k, my_knn.nidx + i * (k + 1), k * sizeof(int));
         memcpy(knn.ndist + i * k, my_knn.ndist + i * (k + 1) , k * sizeof(double));   
@@ -155,12 +155,12 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         temp_vpt.n = other_m;
         temp_vpt.d = d;
         
-        temp_vpt.id = malloc(other_m * sizeof(int));
-        temp_vpt.p = malloc(other_m * d * sizeof(double));
-        temp_vpt.mu = malloc(other_m * sizeof(double));
+        temp_vpt.id = (int *)malloc(other_m * sizeof(int));
+        temp_vpt.p = (double *)malloc(other_m * d * sizeof(double));
+        temp_vpt.mu = (double *)malloc(other_m * sizeof(double));
 
-        temp_vpt.left_cnt = malloc(other_m * sizeof(int));
-        temp_vpt.right_cnt = malloc(other_m * sizeof(int));
+        temp_vpt.left_cnt = (int *)malloc(other_m * sizeof(int));
+        temp_vpt.right_cnt = (int *)malloc(other_m * sizeof(int));
 
         temp_vpt.B = k;
 
@@ -188,11 +188,14 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
             printf("Search time\n%ld us\n%f s\n\n", search_time, search_time*1e-6);
 
         prev_vpt = temp_vpt;
+
     }
 
+    free(my_X);
 
-    int *recvcounts = malloc(world_size * sizeof(int));
-    int *recvdispls = malloc(world_size * sizeof(int));    
+
+    int *recvcounts = (int *)malloc(world_size * sizeof(int));
+    int *recvdispls = (int *)malloc(world_size * sizeof(int));    
 
     for(int i=0; i<world_size; i++) recvcounts[i] = n/world_size * k;
     for(int i=0; i<n%world_size; i++) recvcounts[i] += k;                     
@@ -206,8 +209,8 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     knnresult final;
     final.m = n;
     final.k = k;
-    final.nidx = malloc(n * k * sizeof(int));
-    final.ndist = malloc(n * k * sizeof(double));
+    final.nidx = (int *)malloc(n * k * sizeof(int));
+    final.ndist = (double *)malloc(n * k * sizeof(double));
 
     MPI_Gatherv(knn.nidx, m * k, MPI_INT, 
                 final.nidx, recvcounts, recvdispls, 

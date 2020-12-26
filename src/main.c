@@ -3,8 +3,6 @@
 #include <time.h>
 #include <math.h>
 
-#include "mmio.c"
-
 #include "v2.h"
 
 /*****************************ADD READ MAT************************************/
@@ -38,9 +36,6 @@ int main(int argc, char *argv[]){
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-
-    // if(world_size != 1) return -1;
-
     //Initialze rand()
     srand(time(0));
 
@@ -48,7 +43,7 @@ int main(int argc, char *argv[]){
     int n = 50e3;
     int d = 3;
     //Set the number of nearest neighbours
-    int k = 10;
+    int k = 100;
 
     double *X;
 
@@ -113,26 +108,26 @@ int main(int argc, char *argv[]){
             // printf("\n\n");
         // }
 
-
         int wrong_cnt = 0;
-        for(int i=0; i<1; i++){
+        for(int i=0; i<n; i++){
 
-            k_select(knn1.nidx, knn1.ndist, k, k);
-            k_select(knn2.nidx, knn2.ndist, k, k);
+            k_select(knn1.nidx + i*k, knn1.ndist + i*k, k, k);
+            k_select(knn2.nidx + i*k, knn2.ndist + i*k, k, k);
             
             for(int j=0; j<k; j++){
                 if(knn1.nidx[j + i * k] != knn2.nidx[j + i * k]){
                     wrong_cnt++;
                     printf("%d\nDiff: %lf\n", i, knn1.ndist[j + i * k] - knn2.ndist[j + i * k]);
-                    for(int j=0; j<k; j++) printf("Dist: %.03f  \tIdx: %d\n", knn1.ndist[j + i * k], knn1.nidx[j + i * k]);
-                    printf("\n");
-                    for(int j=0; j<k; j++) printf("Dist: %.03f  \tIdx: %d\n", knn2.ndist[j + i * k], knn2.nidx[j + i * k]);
+                    printf("Dist: %lf  \tIdx: %d\n", knn1.ndist[j + i * k], knn1.nidx[j + i * k]);
+                    printf("Dist: %lf  \tIdx: %d\n", knn2.ndist[j + i * k], knn2.nidx[j + i * k]);
                     printf("\n\n");
-                    break;
+                    // break;
                 }
             }
 
+
         }
+        printf("Speedup %f% \n", (float)v1_time/v2_time * 100);
         if(wrong_cnt) printf("Wrong %d times\n", wrong_cnt);
 
         free(X);

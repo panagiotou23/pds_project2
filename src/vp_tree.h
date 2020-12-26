@@ -17,22 +17,20 @@ typedef struct vp_tree{
 }vp_tree;
 
 /********************PARALLEL MAKE_VP_TREE***************************/
-/**********************CHANGE SELECT VP*****************************/
 int select_vp(double *X, int *id, int n, int d, int max){
+
+    int *indices = (int *)malloc(max * sizeof(int)),
+        *sample = (int *)malloc(max * sizeof(int));
+    for(int i=0; i<max; i++) {
+        sample[i] = rand()%n;
+        indices[i] = rand()%n;
+    }
     
-    return rand()%n;
-
-    int *indices = malloc(max * sizeof(int));
-    for(int i=0; i<max; i++) indices[i] = rand()%n;
-
     double best_spread = 0;
     int best_i;
 
     double sum = 0; 
     for(int k=0; k<max; k++){
-
-        int *sample = malloc(max * sizeof(int));
-        for(int i=0; i<max; i++) sample[i] = rand()%n;
 
         for(int i=0; i<max; i++){
             for(int j=0; j<d; j++){
@@ -53,12 +51,12 @@ int select_vp(double *X, int *id, int n, int d, int max){
 
         if(spread > best_spread){
             best_spread = spread;
-            best_i = k;
+            best_i = indices[k];
         }
 
-        free(sample);
     }   
 
+    free(sample);
     free(indices);
 
     return best_i;
@@ -81,7 +79,7 @@ void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
     vpt->id[index] = id[vp];
     memcpy(vpt->p + index * vpt->d, X + id[vp] * vpt->d, vpt->d * sizeof(double));
 
-    double *distances = malloc(n * sizeof(double));
+    double *distances = (double *)malloc(n * sizeof(double));
     double sum = 0;
 
     for(int i=0; i<n; i++){
@@ -98,8 +96,8 @@ void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
 
     int left_cnt = 0,
         right_cnt = 0,
-        *left_id = malloc(n * sizeof(int)),
-        *right_id = malloc(n * sizeof(int));
+        *left_id = (int *)malloc(n * sizeof(int)),
+        *right_id = (int *)malloc(n * sizeof(int));
 
     for(int i=0; i<n; i++){
         if(distances[i] == 0) continue;
@@ -127,16 +125,16 @@ vp_tree make_vp_tree(double *X, int n, int d, int B){
     vpt.n = n;
     vpt.d = d;
     
-    vpt.id = malloc(n * sizeof(int));
-    vpt.p = malloc(n * d * sizeof(double));
-    vpt.mu = malloc(n * sizeof(double));
+    vpt.id = (int *)malloc(n * sizeof(int));
+    vpt.p = (double *)malloc(n * d * sizeof(double));
+    vpt.mu = (double *)malloc(n * sizeof(double));
 
-    vpt.left_cnt = malloc(n * sizeof(int));
-    vpt.right_cnt = malloc(n * sizeof(int));
+    vpt.left_cnt = (int *)malloc(n * sizeof(int));
+    vpt.right_cnt = (int *)malloc(n * sizeof(int));
 
     vpt.B = B;
 
-    int *id = malloc(n * sizeof(int));
+    int *id = (int *)malloc(n * sizeof(int));
 
     for(int i=0; i<n; i++) id[i] = i;
 
@@ -189,9 +187,9 @@ void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, 
     }
     if(!isLeaf){
         if(x < vpt.mu[index] - ndist[k-1]){
-            if(vpt.left_cnt[index]) search_l(vpt, nidx, ndist, k, q, index);
+            search_l(vpt, nidx, ndist, k, q, index);
         }else if(x > vpt.mu[index] + ndist[k-1]){
-            if(vpt.right_cnt[index]) search_r(vpt, nidx, ndist, k, q, index);
+            search_r(vpt, nidx, ndist, k, q, index);
         }else{
             if(vpt.left_cnt[index]) search_l(vpt, nidx, ndist, k, q, index);
             if(vpt.right_cnt[index]) search_r(vpt, nidx, ndist, k, q, index);

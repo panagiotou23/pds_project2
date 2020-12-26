@@ -10,7 +10,7 @@ $(info $(shell mkdir -p $(BIN_DIR)))
 default: main
 
 main:
-	$(MPICC) $(CFLAGS) -o $(BIN_DIR)/test $(SRC_DIR)/main.c -lopenblas -lm
+	$(MPICC) $(CFLAGS) -o $(BIN_DIR)/test $(SRC_DIR)/main.c -lopenblas -lm -fcilkplus
 	
 .PHONY: clean
 
