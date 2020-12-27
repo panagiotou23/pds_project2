@@ -136,7 +136,9 @@ vp_tree make_vp_tree(double *X, int n, int d, int B){
     for(int i=0; i<n; i++) id[i] = i;
 
     make_vp_node(X, id, &vpt, 0, n);
-
+    
+    free(id);
+    
     return vpt;
 }
 

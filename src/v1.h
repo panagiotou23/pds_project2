@@ -183,7 +183,10 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
             Z = realloc(Z, other_m * d * sizeof(double));
         }
         memcpy(Z, other_X, other_m * d * sizeof(double));
+        
         free(other_X);
+        free(temp_knn.nidx);
+        free(temp_knn.ndist);
 
     }
     

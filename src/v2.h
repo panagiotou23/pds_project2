@@ -3,6 +3,8 @@
 
 #include <mpi.h>
 
+/**************CHECK FOR FUNCTIONS**************************/
+
 //Computes distributed all-kNN of points in X
 knnresult distrAllkNN_2(double * X, int n, int d, int k){
 
@@ -37,7 +39,6 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
                 MPI_DOUBLE, 
                 0, MPI_COMM_WORLD);
 
-    // free(X);
     free(sendcounts);
     free(displs);
 
@@ -127,9 +128,35 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     if(sender < 0) sender = world_size - 1;
     if(receiver == world_size) receiver = 0;
 
-    vp_tree prev_vpt = vpt;
+    vp_tree prev_vpt;
 
-    int other_m = m;
+    prev_vpt.n = m;
+    prev_vpt.d = d;
+    
+    prev_vpt.id = (int *)malloc(m * sizeof(int));
+    prev_vpt.p = (double *)malloc(m * d * sizeof(double));
+    prev_vpt.mu = (double *)malloc(m * sizeof(double));
+
+    prev_vpt.left_cnt = (int *)malloc(m * sizeof(int));
+    prev_vpt.right_cnt = (int *)malloc(m * sizeof(int));
+
+    prev_vpt.B = k/10;    
+
+    memcpy(prev_vpt.id, vpt.id, m * sizeof(int));
+    memcpy(prev_vpt.p, vpt.p, m * d * sizeof(double));
+    memcpy(prev_vpt.mu, vpt.mu, m * sizeof(double));
+
+    memcpy(prev_vpt.left_cnt, vpt.left_cnt, m * sizeof(int));
+    memcpy(prev_vpt.right_cnt, vpt.right_cnt, m * sizeof(int));
+
+    free(vpt.id);
+    free(vpt.p);
+    free(vpt.mu);
+    free(vpt.left_cnt);
+    free(vpt.right_cnt);
+
+    int other_m = m,
+        prev_m = m;
 
     for(int i=0; i<world_size-1; i++){
 
@@ -162,7 +189,7 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         temp_vpt.left_cnt = (int *)malloc(other_m * sizeof(int));
         temp_vpt.right_cnt = (int *)malloc(other_m * sizeof(int));
 
-        temp_vpt.B = k;
+        temp_vpt.B = k/10;
 
         MPI_Irecv(temp_vpt.id, other_m, MPI_INT, sender, 0, MPI_COMM_WORLD, &requests[5]);
         MPI_Irecv(temp_vpt.p, other_m * d, MPI_DOUBLE, sender, 1, MPI_COMM_WORLD, &requests[6]);
@@ -187,12 +214,42 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
         if(world_rank == 0)
             printf("Search time\n%ld us\n%f s\n\n", search_time, search_time*1e-6);
 
-        prev_vpt = temp_vpt;
+
+        // prev_vpt = temp_vpt;
+
+        prev_vpt.n = other_m;
+
+        if(prev_m != other_m){
+            prev_vpt.id = realloc(prev_vpt.id, other_m * sizeof(int));
+            prev_vpt.p = realloc(prev_vpt.p, other_m * d * sizeof(double));
+            prev_vpt.mu = realloc(prev_vpt.mu, other_m * sizeof(double));
+
+            prev_vpt.left_cnt = realloc(prev_vpt.left_cnt, other_m * sizeof(int));
+            prev_vpt.right_cnt = realloc(prev_vpt.right_cnt, other_m * sizeof(int));
+        }
+
+        memcpy(prev_vpt.id, temp_vpt.id, other_m * sizeof(int));
+        memcpy(prev_vpt.p, temp_vpt.p, other_m * d * sizeof(double));
+        memcpy(prev_vpt.mu, temp_vpt.mu, other_m * sizeof(double));
+
+        memcpy(prev_vpt.left_cnt, temp_vpt.left_cnt, other_m * sizeof(int));
+        memcpy(prev_vpt.right_cnt, temp_vpt.right_cnt, other_m * sizeof(int));
+
+        free(temp_vpt.id);
+        free(temp_vpt.p);
+        free(temp_vpt.mu);
+        free(temp_vpt.left_cnt);
+        free(temp_vpt.right_cnt);
 
     }
 
     free(my_X);
 
+    free(prev_vpt.id);
+    free(prev_vpt.p);
+    free(prev_vpt.mu);
+    free(prev_vpt.left_cnt);
+    free(prev_vpt.right_cnt);
 
     int *recvcounts = (int *)malloc(world_size * sizeof(int));
     int *recvdispls = (int *)malloc(world_size * sizeof(int));    
@@ -212,16 +269,19 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
     final.nidx = (int *)malloc(n * k * sizeof(int));
     final.ndist = (double *)malloc(n * k * sizeof(double));
 
-    MPI_Gatherv(knn.nidx, m * k, MPI_INT, 
+    MPI_Gatherv(knn.nidx, knn.m * k, MPI_INT, 
                 final.nidx, recvcounts, recvdispls, 
                 MPI_INT, 0, MPI_COMM_WORLD);
                 
-    MPI_Gatherv(knn.ndist, m * k, MPI_DOUBLE, 
+    MPI_Gatherv(knn.ndist, knn.m * k, MPI_DOUBLE, 
                 final.ndist, recvcounts, recvdispls, 
                 MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     free(recvcounts);
     free(recvdispls);
+
+    free(knn.nidx);
+    free(knn.ndist);
 
     return final;
 }
