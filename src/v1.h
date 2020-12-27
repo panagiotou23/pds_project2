@@ -88,6 +88,9 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
         memcpy(knn.nidx + i * k, my_knn.nidx + i * (k + 1), k * sizeof(int));
         memcpy(knn.ndist + i * k, my_knn.ndist + i * (k + 1) , k * sizeof(double));   
     }
+
+    for(int i=0; i<m*k; i++) knn.ndist[i] = sqrt(knn.ndist[i]);
+
     free(my_knn.nidx);
     free(my_knn.ndist);
 
@@ -149,6 +152,8 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
             }
         }
 
+        for(int i=0; i<m*k; i++) temp_knn.ndist[i] = sqrt(temp_knn.ndist[i]);
+
         points_owner--;
         if(points_owner < 0) points_owner = world_size - 1;
 
@@ -184,8 +189,6 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
     
     free(my_X);
     free(Z);
-
-    for(int i=0; i<m*k; i++) knn.ndist[i] = sqrt(knn.ndist[i]);
 
     int *recvcounts = (int *)malloc(world_size * sizeof(int));
     int *recvdispls = (int *)malloc(world_size * sizeof(int));    
