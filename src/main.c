@@ -5,6 +5,7 @@
 
 #include "v2.h"
 
+#include <unistd.h>
 /*****************************ADD READ MAT************************************/
 
 double *create_X(int n, int d){
@@ -43,7 +44,7 @@ int main(int argc, char *argv[]){
     int n = 25e3;
     int d = 3;
     //Set the number of nearest neighbours
-    int k = 10;
+    int k = 100;
 
     double *X;
 
@@ -61,7 +62,7 @@ int main(int argc, char *argv[]){
     //Start the clock
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
-    // //Find the knn of the corpus data points
+    //Find the knn of the corpus data points
     knnresult knn1 = distrAllkNN_1(X, n, d, k);
 
     //Stop the clock
@@ -133,6 +134,12 @@ int main(int argc, char *argv[]){
         free(X);
     }
     
+    free(knn1.nidx);
+    free(knn1.ndist);
+    
+    free(knn2.nidx);
+    free(knn2.ndist);
+
     MPI_Finalize();
     return 0;
 }
