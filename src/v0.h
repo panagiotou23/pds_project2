@@ -213,24 +213,18 @@ knnresult alt_kNN(  double *X,
     knn.nidx = (int *)malloc(m * k * sizeof(int));
     knn.ndist = (double *)malloc(m * k * sizeof(double));
 
-    //For every point in Y
     for(int j=0; j<m; j++){
 
-        //Calcute its distance from every point in X 
         double * ndist = calc_Dcol(X, Y, n, d, j);
 
-        //And memorize their indices
         int * nidx = (int *)malloc(n * sizeof(int));
         for(int i=0; i<n; i++) nidx[i] = i;
 
-        //Sort the k distances and indices
         quickselect(nidx, ndist, 0, n-1, k);
         
-        //Save only the k smallest distances except from itself
         memcpy(knn.nidx + j * k, nidx, k * sizeof(int));
         memcpy(knn.ndist + j * k, ndist, k * sizeof(double));
         
-        //Free the arrays
         free(nidx);
         free(ndist);
     }

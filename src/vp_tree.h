@@ -3,17 +3,18 @@
 #include <math.h>
 
 typedef struct vp_tree{
-    int n,
-        d,
-        B,
-        *id,
-        *left_cnt,
-        *right_cnt;
-    double *p,
-           *mu;
+    int n,              //total points of the tree
+        d,              //dimension of the points
+        B,              //max points per lef
+        *id,            //id of every point in the tree
+        *left_cnt,      //number of left children of every point in the tree 
+        *right_cnt;     //number of right children of every point in the tree
+    double *p,          //points of the tree
+           *mu;         //median distance of each point from its subset
 
 }vp_tree;
 
+//Selcets the vantage point from a specified subset of points
 int select_vp(double *X, int *id, int n, int d, int max){
 
     int *indices = (int *)malloc(max * sizeof(int)),
@@ -59,6 +60,7 @@ int select_vp(double *X, int *id, int n, int d, int max){
     return best_i;
 }
 
+//Add a node to the vantge point tree
 void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
     
     if(n <= vpt->B){
@@ -117,6 +119,7 @@ void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
 
 }
 
+//Creates the vantage point tree
 vp_tree make_vp_tree(double *X, int n, int d, int B){
     vp_tree vpt;
     vpt.n = n;
@@ -142,7 +145,7 @@ vp_tree make_vp_tree(double *X, int n, int d, int B){
     return vpt;
 }
 
-
+//Adds the distance and the index of a point in a sorted array
 void add(int *nidx, double *ndist, int k, int idx, double x){
     for(int i=0; i<k; i++){
         if(ndist[i] >= x){
@@ -156,8 +159,10 @@ void add(int *nidx, double *ndist, int k, int idx, double x){
     }
 }
 
+//Calculates the kNN of a query point in a vantage point tree
 void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, int isLeaf, int points);
 
+//Searches the left subtree of a vantage point tree
 void search_l(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index){
     if(vpt.left_cnt[index] > vpt.B){
         search(vpt, nidx, ndist, k, q, index + 1, 0, 1);    
@@ -166,6 +171,7 @@ void search_l(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index
     }
 }
 
+//Searches the right subtree of a vantage point tree
 void search_r(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index){
     if(vpt.right_cnt[index] > vpt.B){   
         search(vpt, nidx, ndist, k, q, index + vpt.left_cnt[index] + 1, 0, 1);

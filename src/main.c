@@ -1,11 +1,8 @@
-#include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
-#include <math.h>
 
 #include "v2.h"
 
-#include <unistd.h>
 /*****************************ADD READ MAT************************************/
 
 double *create_X(int n, int d){
@@ -41,7 +38,7 @@ int main(int argc, char *argv[]){
     srand(time(0));
 
     //Set the number and dimensions of the data points
-    int n = 25e3;
+    int n = 10e3;
     int d = 3;
     //Set the number of nearest neighbours
     int k = 100;

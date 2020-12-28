@@ -2,20 +2,11 @@
 
 #include <mpi.h>
 
-//Computes distributed all-kNN of points in X
-knnresult distrAllkNN_1(double * X, int n, int d, int k){
+//Distributes X to all processes
+double *get_X(double *X, int n, int d, int m){
 
-    //Store the world rank and size
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
-    //Define the number of queries in each process
-    int m = n/world_size;
-    for(int i=0; i<n%world_size; i++){              //if the number of processes is not dividable with the number of elements
-        if(world_rank == i ) m = n/world_size + 1;  //the first will receive one extra 
-    }
 
     int *sendcounts = (int *)malloc(world_size * sizeof(int));
     int *displs = (int *)malloc(world_size * sizeof(int));    
@@ -39,30 +30,15 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
     free(sendcounts);
     free(displs);
 
-    //Declare the variables used to time the function
-    struct timespec ts_start;
-    struct timespec ts_end;
+    return my_X;
 
-    //Start the clock
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+}
 
-    knnresult my_knn = kNN(my_X, my_X, m, m, d, k + 1);
+//Calculates the kNN of its own points
+knnresult get_my_kNN_1(double *X, int m, int d, int k, int offset){
 
-    //Stop the clock
-    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    knnresult my_knn = kNN(X, X, m, m, d, k + 1);
 
-    //Calculate time 
-    long v0_time = (ts_end.tv_sec - ts_start.tv_sec)* 1000000 + (ts_end.tv_nsec - ts_start.tv_nsec)/ 1000;
-
-    if(world_rank == 0)
-        printf("V0 time\n%ld us\n%f s\n\n", v0_time, v0_time*1e-6);
-
-    int offset;
-    if(world_rank < n%world_size){
-        offset = world_rank * m;
-    }else{
-        offset = world_rank * m  + n%world_size;
-    }
     for(int i=0; i<m; i++){
         for(int j=0; j<k+1; j++) {
             my_knn.nidx[j + i*(k+1)] += offset;
@@ -94,9 +70,65 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
     free(my_knn.nidx);
     free(my_knn.ndist);
 
-    //If there is only one process running return the knn
-    if(world_size == 1) return knn;
+
+    return knn;
+}
+
+//Sends the previous set of points to the next process & 
+//receives the next ones from the previous process
+double *get_other_X(double *Z, int *other_m, int d, int sender, int receiver, MPI_Status *status, MPI_Request *request){
+    int flag = 0;
     
+    MPI_Isend(Z, *other_m * d, MPI_DOUBLE, receiver, 0, MPI_COMM_WORLD, request);
+
+    while(!flag) MPI_Iprobe( sender, 0, MPI_COMM_WORLD, &flag, status);
+    MPI_Get_count( status, MPI_DOUBLE, other_m );        
+    *other_m /= d;
+
+    double *other_X = (double *)malloc(*other_m * d * sizeof(double));
+    MPI_Recv(other_X , *other_m * d, MPI_DOUBLE, sender, 0, MPI_COMM_WORLD, status);
+
+    return other_X;
+}
+
+//Updates the kNN given the previous and new knnresult
+knnresult update_KNN(knnresult knn, knnresult temp_knn, int m, int k){
+
+    for(int i=0; i<m; i++){
+
+        int *nidx = (int *)malloc(2 * k * sizeof(int));
+        double *ndist = (double *)malloc(2 * k * sizeof(double));
+
+        memcpy(nidx, knn.nidx + i * k, k * sizeof(int));            
+        memcpy(ndist, knn.ndist + i * k, k * sizeof(double));
+
+        memcpy(nidx + k, temp_knn.nidx + i * k, k * sizeof(int));            
+        memcpy(ndist + k, temp_knn.ndist + i * k, k * sizeof(double));
+        
+        quickselect(nidx, ndist, 0, (2 * k) - 1, k);
+
+        memcpy(knn.nidx + i * k, nidx, k * sizeof(int));            
+        memcpy(knn.ndist + i * k, ndist, k * sizeof(double));
+
+        free(nidx);
+        free(ndist);
+    }
+
+    free(temp_knn.nidx);
+    free(temp_knn.ndist);
+
+    return knn;
+}
+
+//Calculates the distributed all-kNN of its points 
+//by moving the sets of points in a ring
+knnresult exchange_points(double *my_X, int n, int d, int m, int k, knnresult knn){
+
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
     int receiver = world_rank + 1,
         sender = world_rank - 1;
         
@@ -110,34 +142,14 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
     int points_owner = sender;
 
     for(int i=0; i<world_size-1; i++){
-        
-        int flag = 0;
+    
+        int prev_m = other_m;
         MPI_Status status;
         MPI_Request request;
-        int prev_m = other_m;
         
-        MPI_Isend(Z, other_m * d, MPI_DOUBLE, receiver, 0, MPI_COMM_WORLD, &request);
-
-        while(!flag) MPI_Iprobe( sender, 0, MPI_COMM_WORLD, &flag, &status);
-        MPI_Get_count( &status, MPI_DOUBLE, &other_m );        
-        other_m /= d;
-
-        double *other_X = (double *)malloc(other_m * d * sizeof(double));
-        MPI_Recv(other_X , other_m * d, MPI_DOUBLE, sender, 0, MPI_COMM_WORLD, &status);
-        
-        //Start the clock
-        clock_gettime(CLOCK_MONOTONIC, &ts_start);
+        double *other_X = get_other_X(Z, &other_m, d, sender, receiver, &status, &request);
 
         knnresult temp_knn = kNN(other_X, my_X, other_m, m, d, k);
-        
-        //Stop the clock
-        clock_gettime(CLOCK_MONOTONIC, &ts_end);
-
-        //Calculate time 
-        v0_time = (ts_end.tv_sec - ts_start.tv_sec)* 1000000 + (ts_end.tv_nsec - ts_start.tv_nsec)/ 1000;
-
-        if(world_rank == 0)
-            printf("V0 time\n%ld us\n%f s\n\n", v0_time, v0_time*1e-6);
 
         int owner_offset;
         if(points_owner < n%world_size){
@@ -155,27 +167,10 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
         for(int i=0; i<m*k; i++) temp_knn.ndist[i] = sqrt(temp_knn.ndist[i]);
 
         points_owner--;
-        if(points_owner < 0) points_owner = world_size - 1;
+        if(points_owner < 0)
+            points_owner = world_size - 1;
 
-        for(int i=0; i<m; i++){
-
-            int *nidx = (int *)malloc(2 * k * sizeof(int));
-            double *ndist = (double *)malloc(2 * k * sizeof(double));
-
-            memcpy(nidx, knn.nidx + i * k, k * sizeof(int));            
-            memcpy(ndist, knn.ndist + i * k, k * sizeof(double));
-
-            memcpy(nidx + k, temp_knn.nidx + i * k, k * sizeof(int));            
-            memcpy(ndist + k, temp_knn.ndist + i * k, k * sizeof(double));
-            
-            quickselect(nidx, ndist, 0, (2 * k) - 1, k);
-
-            memcpy(knn.nidx + i * k, nidx, k * sizeof(int));            
-            memcpy(knn.ndist + i * k, ndist, k * sizeof(double));
-
-            free(nidx);
-            free(ndist);
-        }
+        knn = update_KNN(knn, temp_knn, m, k);
 
         MPI_Wait(&request, NULL);
 
@@ -185,13 +180,19 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
         memcpy(Z, other_X, other_m * d * sizeof(double));
         
         free(other_X);
-        free(temp_knn.nidx);
-        free(temp_knn.ndist);
 
     }
     
-    free(my_X);
     free(Z);
+
+    return knn;
+}
+
+//Gathers all the local kNN to process 0
+knnresult gather_final_kNN(int n, int m, int k, knnresult knn){
+
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
     int *recvcounts = (int *)malloc(world_size * sizeof(int));
     int *recvdispls = (int *)malloc(world_size * sizeof(int));    
@@ -199,7 +200,7 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
     for(int i=0; i<world_size; i++) recvcounts[i] = n/world_size * k;
     for(int i=0; i<n%world_size; i++) recvcounts[i] += k;                     
    
-    sum=0; 
+    int sum=0; 
     for(int i=0; i<world_size; i++){
         recvdispls[i] = sum;
         sum += recvcounts[i];
@@ -221,6 +222,45 @@ knnresult distrAllkNN_1(double * X, int n, int d, int k){
 
     free(recvcounts);
     free(recvdispls);
+
+    return final;
+
+}
+
+
+//Computes distributed all-kNN of points in X
+knnresult distrAllkNN_1(double * X, int n, int d, int k){
+
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+    int m = n/world_size;
+    for(int i=0; i<n%world_size; i++){              
+        if(world_rank == i ) m = n/world_size + 1;  
+    }
+
+    double *my_X = get_X(X, n, d, m);
+
+    int offset;
+    if(world_rank < n%world_size){
+        offset = world_rank * m;
+    }else{
+        offset = world_rank * m  + n%world_size;
+    }
+
+    knnresult knn = get_my_kNN_1(my_X, m, d, k, offset);
+
+    if(world_size == 1){
+        free(my_X);
+        return knn;
+    }
+
+    knn = exchange_points(my_X, n, d, m, k, knn);
+    free(my_X);
+
+    knnresult final = gather_final_kNN(n, m, k, knn);
 
     free(knn.nidx);
     free(knn.ndist);
