@@ -14,7 +14,7 @@ typedef struct vp_tree{
 
 }vp_tree;
 
-//Selcets the vantage point from a specified subset of points
+//Selects the vantage point from a specified subset of points
 int select_vp(double *X, int *id, int n, int d, int max){
 
     int *indices = (int *)malloc(max * sizeof(int)),
