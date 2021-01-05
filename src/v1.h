@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "v0.h"
 
 #include <mpi.h>
@@ -175,7 +177,7 @@ knnresult exchange_points(double *my_X, int n, int d, int m, int k, knnresult kn
         MPI_Wait(&request, NULL);
 
         if(other_m != prev_m){
-            Z = realloc(Z, other_m * d * sizeof(double));
+            Z = (double *)realloc(Z, other_m * d * sizeof(double));
         }
         memcpy(Z, other_X, other_m * d * sizeof(double));
         
