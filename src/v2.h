@@ -15,12 +15,12 @@ void copy_vp_tree(vp_tree *vpt, vp_tree *prev_vpt){
 
     }else if(prev_vpt->n != vpt->n){
 
-        prev_vpt->id = realloc(prev_vpt->id, vpt->n * sizeof(int));
-        prev_vpt->p = realloc(prev_vpt->p, vpt->n * vpt->d * sizeof(double));
-        prev_vpt->mu = realloc(prev_vpt->mu, vpt->n * sizeof(double));
+        prev_vpt->id = (int *)realloc(prev_vpt->id, vpt->n * sizeof(int));
+        prev_vpt->p = (double *)realloc(prev_vpt->p, vpt->n * vpt->d * sizeof(double));
+        prev_vpt->mu = (double *)realloc(prev_vpt->mu, vpt->n * sizeof(double));
 
-        prev_vpt->left_cnt = realloc(prev_vpt->left_cnt, vpt->n * sizeof(int));
-        prev_vpt->right_cnt = realloc(prev_vpt->right_cnt, vpt->n * sizeof(int));
+        prev_vpt->left_cnt = (int *)realloc(prev_vpt->left_cnt, vpt->n * sizeof(int));
+        prev_vpt->right_cnt = (int *)realloc(prev_vpt->right_cnt, vpt->n * sizeof(int));
     }
 
     prev_vpt->n = vpt->n;
