@@ -23,8 +23,8 @@ int main(int argc, char *argv[]){
     int n,
         d,
         k;
-    
-    if(strstr(argv[1],"-c") != NULL){
+
+    if((strstr(argv[1],"-c") != NULL) && (argc == 5)){
         n = atof(argv[2]) * 1e3;
         d = atoi(argv[3]);
         k = atoi(argv[4]);
@@ -33,7 +33,7 @@ int main(int argc, char *argv[]){
             X = create_X(n, d);
         }
         
-    }else if(argv[1],"-r"){
+    }else if((strstr(argv[1],"-r") != NULL) && (argc == 4)){
         if(!world_rank){
             X = read_X(&n, &d, argv[2]);
         }
@@ -43,10 +43,14 @@ int main(int argc, char *argv[]){
         MPI_Bcast(&d, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     }else{
-        printf("Wrong input\n\n\tUsage\n");
-        printf("%s -c n d k\n", argv[0]);
-        printf("\t Or\n%s -r path/to/file k\n", argv[0]);
-        return -1;
+        if(!world_rank){
+            printf("Wrong input\n\n\tUsage\n");
+            printf("%s -c n d k\n", argv[0]);
+            printf("\t Or\n%s -r path/to/file k\n", argv[0]);
+        }
+
+        MPI_Finalize();
+        return 0;
     }
     
 
