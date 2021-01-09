@@ -2,13 +2,12 @@
 #include <time.h>
 
 #include "v2.h"
-
-/*****************************ADD READ MAT************************************/
+#include "read_X.h"
 
 double *create_X(int n, int d){
 
     //Initialize the corpus data points
-    double *X = malloc(n * d * sizeof(double));
+    double *X = (double *)malloc(n * d * sizeof(double));
     for(int i=0; i<n*d; i++) X[i] = (double)(rand()%100000)/1000;
     
     return X;
@@ -37,20 +36,37 @@ int main(int argc, char *argv[]){
     //Initialze rand()
     srand(time(0));
 
-    //Set the number and dimensions of the data points
-    int n = 10e3;
-    int d = 3;
-    //Set the number of nearest neighbours
-    int k = 100;
-
     double *X;
+    int n,
+        d,
+        k;
+    
+    if(strstr(argv[1],"-c") != NULL){
+        n = atof(argv[2]) * 1e3;
+        d = atoi(argv[3]);
+        k = atoi(argv[4]);
 
-    if(!world_rank) {
-        X = create_X(n, d);
+        if(!world_rank) {
+            X = create_X(n, d);
+        }
+        
+    }else if(argv[1],"-r"){
+        if(!world_rank){
+            X = read_X(&n, &d, argv[2]);
+        }
+        k = atoi(argv[3]);
 
-        // print_X(X, n, d);
-        // printf("\n\n");
+        MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&d, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    }else{
+        printf("Wrong input\n\n\tUsage\n");
+        printf("%s -c n d k\n", argv[0]);
+        printf("\t Or\n%s -r path/to/file k\n", argv[0]);
+        return -1;
     }
+    
+
 
     //Declare the variables used to time the function
     struct timespec ts_start;
@@ -69,7 +85,7 @@ int main(int argc, char *argv[]){
     long v1_time = (ts_end.tv_sec - ts_start.tv_sec)* 1000000 + (ts_end.tv_nsec - ts_start.tv_nsec)/ 1000;
 
     if(world_rank == 0){
-        printf("V1 time\n%ld us\n%f s\n\n", v1_time, v1_time*1e-6);
+        // printf("V1 time\n%ld us\n%f s\n\n", v1_time, v1_time*1e-6);
         // for(int i=0; i<n; i++){
         //     double *D;
         //     printf("For: %d\n", i);
@@ -94,7 +110,7 @@ int main(int argc, char *argv[]){
     long v2_time = (ts_end.tv_sec - ts_start.tv_sec)* 1000000 + (ts_end.tv_nsec - ts_start.tv_nsec)/ 1000;
     
     if(world_rank == 0){
-        printf("V2 time\n%ld us\n%f s\n\n", v2_time, v2_time*1e-6);
+        // printf("V2 time\n%ld us\n%f s\n\n", v2_time, v2_time*1e-6);
         // for(int i=0; i<n; i++){
             // double *D;
             // printf("For: %d\n", i);
@@ -115,18 +131,18 @@ int main(int argc, char *argv[]){
             for(int j=0; j<k; j++){
                 if(knn1.nidx[j + i * k] != knn2.nidx[j + i * k]){
                     wrong_cnt++;
-                    printf("%d\nDiff: %lf\n", i, knn1.ndist[j + i * k] - knn2.ndist[j + i * k]);
-                    printf("Dist: %lf  \tIdx: %d\n", knn1.ndist[j + i * k], knn1.nidx[j + i * k]);
-                    printf("Dist: %lf  \tIdx: %d\n", knn2.ndist[j + i * k], knn2.nidx[j + i * k]);
-                    printf("\n\n");
+                    // printf("%d\nDiff: %lf\n", i, knn1.ndist[j + i * k] - knn2.ndist[j + i * k]);
+                    // printf("Dist: %lf  \tIdx: %d\n", knn1.ndist[j + i * k], knn1.nidx[j + i * k]);
+                    // printf("Dist: %lf  \tIdx: %d\n", knn2.ndist[j + i * k], knn2.nidx[j + i * k]);
+                    // printf("\n\n");
                     // break;
                 }
             }
 
 
         }
-        printf("Speedup %f\n", (float)v1_time/v2_time);
-        if(wrong_cnt) printf("Wrong %d times\n", wrong_cnt);
+        printf("Speedup %f\n\n\n", (float)v1_time/v2_time);
+        // if(wrong_cnt) printf("Wrong %d times\n", wrong_cnt);
 
         free(X);
     }
