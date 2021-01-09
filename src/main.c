@@ -3,24 +3,7 @@
 
 #include "v2.h"
 #include "read_X.h"
-
-double *create_X(int n, int d){
-
-    //Initialize the corpus data points
-    double *X = (double *)malloc(n * d * sizeof(double));
-    for(int i=0; i<n*d; i++) X[i] = (double)(rand()%100000)/1000;
-    
-    return X;
-}
-
-void print_X(double *X, int n, int d){
-    printf("X\n");
-    for(int i=0; i<n; i++){
-        printf("%d\t", i);
-        for(int j=0; j<d; j++) printf("%lf ", X[j + i*d]);
-        printf("\n");
-    }
-}
+#include "create_X.h"
 
 int main(int argc, char *argv[]){
 
