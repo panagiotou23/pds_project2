@@ -188,7 +188,8 @@ knnresult distrAllkNN_2(double * X, int n, int d, int k){
 
     double *my_X = get_X(X, n, d, m);
 
-    vp_tree vpt = make_vp_tree(my_X, m, d, k/10);
+    int B = log2(m);
+    vp_tree vpt = make_vp_tree(my_X, m, d, B);
     
     int offset;
     if(world_rank < n%world_size){

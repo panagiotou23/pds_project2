@@ -87,11 +87,11 @@ void make_vp_node(double *X, int *id, vp_tree *vpt, int index, int n){
             distances[i] += (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]) *
                     (vpt->p[j + index * vpt->d] - X[j + id[i] * vpt->d]);
         }
-        sum += distances[i];
         distances[i] = sqrt(distances[i]);
+        sum += distances[i];
     }
 
-    vpt->mu[index] = sqrt(sum)/(n-1);
+    vpt->mu[index] = sum/(n-1);
 
     int left_cnt = 0,
         right_cnt = 0,
@@ -164,6 +164,8 @@ void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, 
 
 //Searches the left subtree of a vantage point tree
 void search_l(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index){
+    if(vpt.left_cnt[index] == 0) return;
+
     if(vpt.left_cnt[index] > vpt.B){
         search(vpt, nidx, ndist, k, q, index + 1, 0, 1);    
     }else{
@@ -173,6 +175,8 @@ void search_l(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index
 
 //Searches the right subtree of a vantage point tree
 void search_r(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index){
+    if(vpt.right_cnt[index] == 0) return;
+    
     if(vpt.right_cnt[index] > vpt.B){   
         search(vpt, nidx, ndist, k, q, index + vpt.left_cnt[index] + 1, 0, 1);
     }else{
@@ -190,14 +194,17 @@ void search(vp_tree vpt, int *nidx, double *ndist, int k, double *q, int index, 
     if(x < ndist[k - 1]){
         add(nidx, ndist, k, vpt.id[index], x);
     }
+
     if(!isLeaf){
-        if(x < vpt.mu[index] - ndist[k-1]){
+        double mu = vpt.mu[index];
+        if(x < mu){
             search_l(vpt, nidx, ndist, k, q, index);
-        }else if(x > vpt.mu[index] + ndist[k-1]){
-            search_r(vpt, nidx, ndist, k, q, index);
+            if(x > mu - ndist[k-1])
+                search_r(vpt, nidx, ndist, k, q, index);
         }else{
-            if(vpt.left_cnt[index]) search_l(vpt, nidx, ndist, k, q, index);
-            if(vpt.right_cnt[index]) search_r(vpt, nidx, ndist, k, q, index);
+            search_r(vpt, nidx, ndist, k, q, index);
+            if(x < mu + ndist[k-1])        
+                search_l(vpt, nidx, ndist, k, q, index);
         }
     }else{
         for(int i=1; i<points; i++){
